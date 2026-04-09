@@ -594,7 +594,7 @@ def root():
                         })
                     });
                     const data = await res.json();
-                    this.latestReward = data.reward.toFixed(1);
+                    this.latestReward = data.reward.toFixed(2);
                     this.rewardWasNoisy = (Math.abs(data.reward - data.info.true_reward) > 0.01);
                     this.isDone = data.done;
                     
