@@ -47,20 +47,14 @@ Respond ONLY with JSON, no markdown, no explanation:
 
 def ai_triage(email_text: str, sender: str, subject: str) -> dict:
     """Call the LLM proxy to triage a single email."""
-    if not API_BASE_URL or not API_KEY:
-        # Fallback heuristic if no proxy details injected
-        text = email_text.lower()
-        if any(k in text for k in ["urgent", "password", "security", "breach", "legal", "crashed"]):
-            return {"decision": "escalate", "priority": "high", "reason": "Heuristic: high-risk keywords detected."}
-        elif any(k in text for k in ["meeting", "invoice", "review", "help", "request"]):
-            return {"decision": "reply", "priority": "medium", "reason": "Heuristic: actionable request detected."}
-        else:
-            return {"decision": "ignore", "priority": "low", "reason": "Heuristic: low-signal email."}
-
-    client = openai.OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    api_base = os.environ.get("API_BASE_URL") or "https://api.openai.com/v1"
+    api_key = os.environ.get("API_KEY") or "dummy_key"
+    model_name = os.environ.get("MODEL_NAME") or "gpt-4o"
+    
+    client = openai.OpenAI(base_url=api_base, api_key=api_key)
     
     response = client.chat.completions.create(
-        model=MODEL_NAME,
+        model=model_name,
         messages=[
             {"role": "system", "content": TRIAGE_SYSTEM},
             {"role": "user", "content": f"From: {sender}\nSubject: {subject}\nBody: {email_text}"}
