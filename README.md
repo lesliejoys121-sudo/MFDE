@@ -1,107 +1,173 @@
----
-title: MFDE-Email-Triage
-emoji: 📧
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
----
+# 🧠 MFDE: Misleading Feedback Decision Environment — v2.0
 
-# 🧠 MFDE: Misleading Feedback Decision Environment
-
-[![OpenEnv](https://img.shields.io/badge/Spec-OpenEnv--1.0-blue)](https://github.com/openenv)
+[![OpenEnv](https://img.shields.io/badge/Spec-OpenEnv--2.0-blue)](https://github.com/openenv)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-HuggingFace-yellow)](https://huggingface.co/spaces/Roshan10000/MFDE)
+[![Platform](https://img.shields.io/badge/Platform-HuggingFace-yellow)](https://huggingface.co/spaces)
 
-MFDE is a professional-grade **Email Triage Simulation** designed to evaluate and train AI agents in handling **high-stakes decisions under misleading feedback**.
-
----
-
-## 🌍 Real-World Utility (30% Weighting)
-
-In modern Security Operations (SecOps), feedback loops are often corrupted by noisy signals, look-alike domains, and biased human review. MFDE models this "Reality Gap" by forcing agents to choose between:
-1.  **Trusting the Evidence**: Analyzing the raw email content for deceptive patterns.
-2.  **Trusting the Reward**: Following potentially corrupted feedback signals that may penalize correct security escalations.
-
-This environment is immediately valuable for the RL community to test **agentic resilience and calibration** in enterprise-critical workflows.
+MFDE is a professional-grade **Email Triage Simulation** that evaluates AI agents on high-stakes decisions under misleading feedback — now extended with **real Gmail inbox integration**.
 
 ---
 
-## 👁️ Technical Specifications
+## What's New in v2.0
 
-### Observation Space
-The environment provides structured email metadata:
-| Field | Type | Description |
-|---|---|---|
-| `email_text` | `string` | The full raw body of the email |
-| `sender` | `string` | The sender address (critical for phishing detection) |
-| `subject` | `string` | The subject line |
-| `step_count` | `int` | Progress within the current task |
+- **Real Gmail support** — connect any Gmail account via MCP and triage real emails
+- **AI-powered inference** — `inference.py` now uses Claude instead of keyword heuristics
+- **Two new API endpoints** — `/api/gmail/fetch` and `/api/gmail/triage`
+- **Standalone triage script** — `gmail_triage.py` for CLI-only Gmail triage
+- **No ground-truth required** — Gmail emails are graded by pattern analysis, not labels
 
-### Action Space (JSON)
-The agent must submit a precise triage decision:
+---
+
+## Quick Start
+
+### 1. Install & run locally
+
+```bash
+pip install -r requirements.txt
+export ANTHROPIC_API_KEY="your-key-here"
+python -m uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+### 2. Run simulation inference (easy/medium/hard tasks)
+
+```bash
+python inference.py --task easy
+python inference.py --task hard
+```
+
+### 3. Triage your real Gmail inbox
+
+```bash
+# Via the server API (server must be running)
+python inference.py --gmail --max-emails 15
+
+# Standalone (no server needed)
+python gmail_triage.py
+```
+
+### 4. Docker
+
+```bash
+docker build -t mfde .
+docker run -p 8000:8000 \
+  -e ANTHROPIC_API_KEY="your-key-here" \
+  mfde
+```
+
+---
+
+## API Endpoints
+
+### Standard OpenEnv
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/reset` | Reset environment, pick task (easy/medium/hard) |
+| POST | `/step` | Submit triage action, get reward |
+| GET | `/state` | Current episode state + history |
+| GET | `/api/performance` | Score, streak, rank |
+| POST | `/api/scan` | Stateless scam scanner |
+
+### Gmail Integration
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/gmail/fetch` | Fetch real Gmail emails via MCP, load into env |
+| POST | `/api/gmail/triage` | Triage a list of emails with Claude AI |
+
+#### Example: Fetch Gmail
+
+```bash
+curl -X POST http://localhost:8000/api/gmail/fetch \
+  -H "Content-Type: application/json" \
+  -d '{"max_emails": 10}'
+```
+
+#### Example: Triage emails
+
+```bash
+curl -X POST http://localhost:8000/api/gmail/triage \
+  -H "Content-Type: application/json" \
+  -d '{
+    "emails": [
+      {
+        "from": "boss@company.com",
+        "from_name": "Alice",
+        "subject": "Urgent: server down",
+        "snippet": "Production is offline. Need immediate help."
+      }
+    ]
+  }'
+```
+
+Response:
 ```json
 {
-  "decision": "reply | ignore | escalate",
-  "priority": "low | medium | high"
+  "results": [
+    {
+      "email_index": 0,
+      "from_address": "boss@company.com",
+      "subject": "Urgent: server down",
+      "decision": "escalate",
+      "priority": "high",
+      "reason": "Production outage requires immediate escalation.",
+      "score": 0.5
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "by_decision": {"escalate": 1, "reply": 0, "ignore": 0},
+    "by_priority": {"high": 1, "medium": 0, "low": 0}
+  }
 }
 ```
 
 ---
 
-## 🎯 Task Tiers & Difficulty
+## Environment Variables
 
-MFDE includes 3 curated tasks that range from simple classification to adversarial security challenges.
-
-| Tier | Steps | Noise ✅ | Description |
-|---|---|---|---|
-| **EASY** | 5 | 0% | Clear signals. Noisy rewards are disabled. Tests basic triage logic. |
-| **MEDIUM** | 7 | 30% | Deceptive "CEO Fraud" emails. Reward signals can be randomly misleading. |
-| **HARD** | 10 | 50% | Advanced phishing (Repo mimics, Metamask drains). High-variance rewards. |
-
----
-
-## 🧮 Reward & Grader Design
-
-### Partial Progress Reward
-MFDE provides **dense signal** over the trajectory:
-- **Base Reward**: `+0.6` for correct decision, `+0.4` for correct priority.
-- **Difficulty Multiplier**: Medium (1.5x), Hard (2.0x).
-- **Streak Bonus**: Each consecutive correct triage adds a `+10%` bonus (up to `+50%`).
-
-### Deterministic Grader
-Compliance with the hackathon rubric is guaranteed via `grader.py`:
-- **Function**: `grade(history) -> float [0.01 - 0.99]`
-- Calculated by averaging total weighted rewards across the trajectory and normalizing to a 1.0 scale.
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ANTHROPIC_API_KEY` | Anthropic API key (required for Gmail + AI triage) | — |
+| `GMAIL_MCP_URL` | Gmail MCP server URL | `https://gmail.mcp.claude.com/mcp` |
+| `API_BASE_URL` | MFDE server URL (for inference.py) | `http://localhost:8000` |
+| `MODEL_NAME` | Claude model for inference | `claude-sonnet-4-20250514` |
 
 ---
 
-## 🚀 Getting Started
+## Task Tiers
 
-### Prerequisites
-- Python 3.11+
-- [Docker](https://www.docker.com/) (for containerized execution)
+| Tier | Steps | Noise | Description |
+|------|-------|-------|-------------|
+| easy | 5 | 0% | Clear signals, basic triage |
+| medium | 7 | 30% | CEO fraud, deceptive emails |
+| hard | 10 | 50% | Advanced phishing, high variance |
+| gmail | varies | 0% | Real inbox, AI-graded |
 
-### Local Launch
-```bash
-pip install -r requirements.txt
-python app.py
+---
+
+## Reward Design
+
+- `escalate + high` (both correct) → **0.99**
+- Decision correct only → **0.30**
+- Decision wrong → **0.01**
+- Medium/Hard tasks inject reward noise to simulate corrupted feedback loops
+- Gmail mode: no noise, heuristic scoring since there are no ground-truth labels
+
+---
+
+## File Structure
+
 ```
-
-### Baseline Inference (Reproduction)
-Our `inference.py` uses the standard OpenAI client and reads from environment variables:
-```bash
-export API_BASE_URL="https://your-api-endpoint"
-export MODEL_NAME="gpt-4"
-export HF_TOKEN="your-hf-token"
-python inference.py
+mfde-gmail/
+├── app.py            # FastAPI server (standard + Gmail endpoints)
+├── env.py            # MFDEEnv with Gmail support
+├── models.py         # Pydantic models (incl. Gmail models)
+├── tasks.py          # Simulation task definitions
+├── grader.py         # Grading logic (simulation + Gmail)
+├── inference.py      # AI inference script (simulation + Gmail)
+├── gmail_triage.py   # Standalone CLI Gmail triage tool
+├── openenv.yaml      # OpenEnv spec
+├── Dockerfile        # HF Spaces compatible (UID 1000)
+└── requirements.txt  # Dependencies
 ```
-
----
-
-## 🏗️ Spec Compliance Checklist
-- [x] **Typed Models**: Full Pydantic V2 implementation in `models.py`.
-- [x] **Standard API**: `/reset`, `/step`, and `/state` endpoints functional.
-- [x] **Containerized**: `Dockerfile` tested for HF Spaces UID 1000.
-- [x] **Structured Logs**: Baseline script outputs exact `[START]/[STEP]/[END]` format.
-- [x] **Deterministic**: All graders are 100% reproducible.

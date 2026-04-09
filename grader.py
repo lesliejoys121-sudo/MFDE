@@ -25,9 +25,8 @@ def grade(history: List[Dict]) -> float:
         return 0.01
 
     total_score = 0.0
-    for entry in history:
-        # History objects store the calculated reward in 'reward' or 'true_reward'
-        total_score += entry.get("true_reward", entry.get("reward", 0.01))
+    for step in history:
+        total_score += grade_step(step["action"], step)
 
     average_score = total_score / len(history)
     return round(max(0.01, min(0.99, average_score)), 4)
@@ -40,7 +39,7 @@ def grade_gmail(results: List[Dict]) -> dict:
     Returns a summary dict with per-decision stats.
     """
     if not results:
-        return {"total": 0, "by_decision": {}, "by_priority": {}}
+        return {"score": 0.01, "total": 0, "by_decision": {}}
 
     by_decision = {"escalate": 0, "reply": 0, "ignore": 0}
     by_priority = {"high": 0, "medium": 0, "low": 0}
@@ -56,7 +55,7 @@ def grade_gmail(results: List[Dict]) -> dict:
         "total": total,
         "by_decision": by_decision,
         "by_priority": by_priority,
-        "escalate_rate": round(by_decision["escalate"] / total, 2) if total > 0 else 0,
-        "reply_rate": round(by_decision["reply"] / total, 2) if total > 0 else 0,
-        "ignore_rate": round(by_decision["ignore"] / total, 2) if total > 0 else 0,
+        "escalate_rate": round(by_decision["escalate"] / total, 2),
+        "reply_rate": round(by_decision["reply"] / total, 2),
+        "ignore_rate": round(by_decision["ignore"] / total, 2),
     }

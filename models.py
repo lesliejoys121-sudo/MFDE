@@ -23,7 +23,7 @@ class State(BaseModel):
     history: List[dict]
 
 class ResetRequest(BaseModel):
-    task: Literal["easy", "medium", "hard", "gmail"] = "easy"
+    task: Literal["easy", "medium", "hard"] = "easy"
     mode: Literal["simulation", "infinite"] = "simulation"
 
 # --- Gmail Integration Models ---

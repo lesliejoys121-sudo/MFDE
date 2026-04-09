@@ -55,31 +55,25 @@ class MFDEEnv:
     # ------------------------------------------------------------------ #
 
     def reset(self, task: str = "easy", mode: str = "simulation") -> Observation:
-        if task == "gmail" and self._gmail_emails:
-            self._using_gmail = True
-        elif task in TASKS:
-            self.task_name = task
-            self._using_gmail = False
-        else:
-            self.task_name = "easy"
-            self._using_gmail = False
-
+        if task not in TASKS:
+            task = "easy"
+        self.task_name = task
         self.mode = mode
         self.current_step = 0
-        self.session_score = 0.01
+        self.current_streak = 0
         self.total_score = 0.01
         self.is_done = False
         self.history = []
 
+        emails = self._active_emails()
         if mode == "simulation" and not self._using_gmail:
-            # We don't shuffle Gmail emails to keep user context
             random.shuffle(TASKS[self.task_name]["emails"])
 
         return self._get_obs()
 
     def get_task_emails(self, task: str) -> list:
-        if task == "gmail":
-            return self._gmail_emails if self._gmail_emails else []
+        if self._using_gmail:
+            return self._gmail_emails
         if task not in TASKS:
             return []
         return TASKS[task]["emails"]
@@ -97,21 +91,18 @@ class MFDEEnv:
         return {
             "scam_likelihood": round(max(0.01, min(0.99, score)), 2),
             "suggested_action": prediction,
-            "suggested_priority": priority
+            "suggested_priority": priority,
+            "detected_patterns": matches[:3]
         }
 
     def _get_obs(self) -> Observation:
         emails = self._active_emails()
-        if not emails:
-            return Observation(email_text="", sender="", subject="", step_count=0)
-        # Guard against out-of-bounds
-        idx = min(self.current_step, len(emails) - 1)
-        email = emails[idx]
+        email = emails[self.current_step]
         return Observation(
             email_text=email["email_text"],
             sender=email["sender"],
             subject=email["subject"],
-            step_count=idx
+            step_count=self.current_step
         )
 
     def step(self, action: Action) -> Tuple[Observation, Reward, bool, Dict[str, Any]]:
@@ -119,10 +110,8 @@ class MFDEEnv:
             raise RuntimeError("Episode is already finished. Call reset() first.")
 
         emails = self._active_emails()
-        if not emails:
-            return self._get_obs_last(), Reward(value=0.01), True, {}
+        task_data = TASKS[self.task_name]
 
-        # Sync to specific ID if provided (for Dashboard correctness)
         if action.email_id is not None and 0 <= action.email_id < len(emails):
             self.current_step = action.email_id
 
@@ -136,6 +125,8 @@ class MFDEEnv:
         else:
             decision_match = (action.decision == email["correct_decision"])
             priority_match = (action.priority == email["correct_priority"])
+
+        base_reward = (0.6 if decision_match else 0.0) + (0.4 if priority_match else 0.0)
 
         if decision_match and priority_match:
             true_reward = 0.99
@@ -157,7 +148,6 @@ class MFDEEnv:
             "step": self.current_step,
             "observation": self._get_obs().model_dump(),
             "action": action.model_dump(),
-            "reward": true_reward,
             "true_reward": true_reward,
             "streak": self.current_streak,
             "correct_decision": email.get("correct_decision", "n/a"),
@@ -166,12 +156,10 @@ class MFDEEnv:
         })
 
         feedback_reward = round(true_reward, 2)
-        # Simulation noise
-        if not self._using_gmail:
-            noise_prob = TASKS[self.task_name].get("reward_noise_prob", 0.0)
-            if random.random() < noise_prob:
-                noise = random.uniform(-0.1, 0.1)
-                feedback_reward = round(max(0.01, min(0.99, true_reward + noise)), 2)
+        noise_prob = task_data.get("reward_noise_prob", 0.0) if not self._using_gmail else 0.0
+        if random.random() < noise_prob:
+            noise = random.uniform(-0.1, 0.1)
+            feedback_reward = round(max(0.01, min(0.99, true_reward + noise)), 2)
 
         self.current_step += 1
 
@@ -181,26 +169,24 @@ class MFDEEnv:
         else:
             if self.mode != "simulation":
                 self.current_step = self.current_step % len(emails)
-            obs_to_return = self._get_obs()
+            obs_to_return = self._get_obs() if not self.is_done else self._get_obs_last()
 
         return obs_to_return, Reward(value=feedback_reward), self.is_done, {
             "true_reward": true_reward,
             "streak": self.current_streak,
-            "correct_decision": email.get("correct_decision") or "n/a",
-            "correct_priority": email.get("correct_priority") or "n/a",
-            "reason": email.get("reason") or "No additional context available."
+            "reason": email.get("reason", "N/A"),
+            "correct_decision": email.get("correct_decision", "n/a"),
+            "correct_priority": email.get("correct_priority", "n/a")
         }
 
     def _get_obs_last(self) -> Observation:
         emails = self._active_emails()
-        if not emails:
-            return Observation(email_text="", sender="", subject="", step_count=0)
         email = emails[-1]
         return Observation(
             email_text=email["email_text"],
             sender=email["sender"],
             subject=email["subject"],
-            step_count=len(emails) - 1
+            step_count=self.current_step
         )
 
     def state(self) -> State:

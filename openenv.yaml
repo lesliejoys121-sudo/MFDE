@@ -6,7 +6,7 @@ observation_space:
   email_text: {type: string}
   sender:     {type: string}
   subject:    {type: string}
-  step_count: {type: integer}
+  step_count: {type: integer, range: [0, 10]}
 action_space:
   decision: {type: string, options: [reply, ignore, escalate]}
   priority: {type: string, options: [low, medium, high]}

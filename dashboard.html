@@ -3,457 +3,427 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MFDE | Gmail Command Center v2.0</title>
+    <title>TriageCenter | Neural Defense Grid</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #0b0f19;
-            --glass: rgba(255, 255, 255, 0.03);
-            --border: rgba(255, 255, 255, 0.08);
+            --bg: #070913;
+            --surface: #0f1325;
+            --surface-hover: #1a203a;
             --accent: #3b82f6;
+            --neon-green: #10b981;
+            --neon-red: #ef4444;
+            --glass: rgba(15, 19, 37, 0.6);
+            --border: rgba(59, 130, 246, 0.15);
         }
         body {
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Inter', sans-serif;
             background-color: var(--bg);
-            color: #e2e8f0;
-            overflow-x: hidden;
+            color: #d1d5db;
+            overflow: hidden;
+            /* Grid background pattern */
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.05) 0%, transparent 60%),
+                linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 30px 30px, 30px 30px;
         }
-        .glass {
+
+        .glass-panel {
             background: var(--glass);
-            backdrop-filter: blur(20px);
+            backdrop-filter: blur(12px);
             border: 1px solid var(--border);
+            border-radius: 16px;
         }
-        .accent-gradient {
-            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-        }
-        .glow {
-            box-shadow: 0 0 30px rgba(59, 130, 246, 0.2);
-        }
-        .mono { font-family: 'JetBrains Mono', monospace; }
         
-        /* Animated Background Elements */
-        .blob {
-            position: fixed;
-            width: 500px;
-            height: 500px;
-            background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
-            border-radius: 50%;
-            z-index: -1;
-            filter: blur(80px);
-            animation: move 20s infinite alternate;
+        .pulse-border {
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+            border-color: rgba(59, 130, 246, 0.5);
         }
-        @keyframes move {
-            from { transform: translate(-10%, -10%); }
-            to { transform: translate(20%, 30%); }
+
+        .btn-reply {
+            background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+            box-shadow: 0 10px 25px rgba(34, 197, 94, 0.3), inset 0 2px 4px rgba(255,255,255,0.3);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
+        .btn-ignore {
+            background: linear-gradient(180deg, #374151 0%, #1f2937 100%);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(255,255,255,0.1);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .btn-escalate {
+            background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+            box-shadow: 0 10px 25px rgba(239, 68, 68, 0.3), inset 0 2px 4px rgba(255,255,255,0.3);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .btn-hover:hover { transform: translateY(-2px) scale(1.02); }
+        .btn-active:active { transform: translateY(2px) scale(0.98); }
 
         [x-cloak] { display: none !important; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.2); border-radius: 10px; }
     </style>
 </head>
-<body x-data="triageApp()" x-init="checkAuth(); initChart();">
-    <div class="blob" style="top: -100px; left: -100px;"></div>
-    <div class="blob" style="bottom: -100px; right: -100px; background: radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 70%);"></div>
+<body x-data="triageApp()" x-init="initApp()" class="h-screen flex flex-col p-6 gap-6 relative">
 
-    <!-- LOGIN SCREEN -->
-    <div x-show="!isLoggedIn" x-cloak class="fixed inset-0 z-[200] flex items-center justify-center bg-[#0b0f19]">
-        <div class="glass p-12 rounded-[40px] w-full max-w-md text-center border-t-4 border-blue-500 shadow-2xl animate-fadeIn">
-            <div class="w-24 h-24 accent-gradient rounded-3xl mx-auto mb-8 flex items-center justify-center text-4xl shadow-lg glow">📧</div>
-            <h1 class="text-4xl font-extrabold mb-2 tracking-tight">MFDE <span class="text-blue-500">v2.0</span></h1>
-            <p class="text-gray-400 mb-10 font-medium">Email Triage Command Center</p>
-            
-            <div class="space-y-4">
-                <input type="text" x-model="loginUser" placeholder="Analyst Callsign" class="w-full bg-white/5 border border-white/10 p-5 rounded-2xl focus:outline-none focus:border-blue-500 transition-all font-medium">
-                <input type="password" x-model="loginPass" placeholder="Security Key" class="w-full bg-white/5 border border-white/10 p-5 rounded-2xl focus:outline-none focus:border-blue-500 transition-all font-medium">
-                <button @click="login()" class="w-full accent-gradient p-5 rounded-2xl font-bold text-white shadow-xl hover:scale-[1.02] active:scale-95 transition-all">ESTABLISH CONNECTION</button>
+    <!-- HEADER OVERLAY (Hidden background glow elements) -->
+    <div class="absolute top-0 left-1/4 w-[50vw] h-[20vh] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none z-0"></div>
+
+    <!-- MAIN HEADER -->
+    <header class="flex justify-between items-center z-10 px-4 shrink-0">
+        <!-- Logo & Title -->
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center font-black text-2xl text-white shadow-[0_0_20px_rgba(37,99,235,0.5)]">M</div>
+            <div>
+                <h1 class="text-xl font-black text-white tracking-tight">TriageCenter</h1>
+                <p class="text-[9px] font-black tracking-[0.2em] text-blue-400 uppercase">Neural Defense Grid</p>
             </div>
-            <p class="text-gray-600 text-[10px] mt-8 tracking-widest uppercase font-bold">Standard credentials: admin / mfde2024</p>
         </div>
-    </div>
 
-    <!-- MAIN DASHBOARD -->
-    <div x-show="isLoggedIn" x-cloak class="flex h-screen p-6 gap-6 transition-opacity duration-1000">
+        <!-- Progress Bar -->
+        <div class="flex flex-col items-center justify-center w-64 pr-16 relative">
+            <div class="w-full flex justify-between items-center mb-2">
+                <span class="text-[8px] font-black tracking-widest text-gray-500 uppercase">Expertise Rank</span>
+                <span class="text-[10px] font-black tracking-widest text-blue-400 uppercase" x-text="perf.rank">NOVICE ANALYST</span>
+            </div>
+            <div class="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                <div class="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)] transition-all duration-1000" :style="'width: ' + perf.progress_percent + '%'"></div>
+            </div>
+        </div>
+
+        <!-- XP Badges -->
+        <div class="flex items-center gap-4">
+            <div class="glass-panel px-6 py-2 flex flex-col items-center justify-center border-white/10">
+                <span class="text-[8px] font-black uppercase text-gray-500 tracking-widest">Total XP</span>
+                <span class="text-xl font-black text-white" x-text="perf.total_score.toFixed(2)">0</span>
+            </div>
+            
+            <!-- Task Switcher (Replaces the basic select, keeping it integrated aesthetic) -->
+            <div class="relative glass-panel rounded-xl overflow-hidden border-white/10 group cursor-pointer">
+                <select x-model="selectedTask" @change="loadInbox()" class="appearance-none bg-transparent w-full h-full text-xs font-bold text-gray-300 py-4 px-6 focus:outline-none cursor-pointer hover:bg-white/5 transition-colors uppercase tracking-widest relative z-10 w-48">
+                    <option value="easy" class="bg-gray-900">Easy Target (1.0x)</option>
+                    <option value="medium" class="bg-gray-900">Medium Vector (2.0x)</option>
+                    <option value="hard" class="bg-gray-900">Hard Alert (3.0x)</option>
+                    <option value="gmail" class="bg-gray-900">Live Telemetry</option>
+                </select>
+                <!-- Arrow -->
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 z-0">▼</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTENT BODY -->
+    <main class="flex-1 flex gap-6 overflow-hidden z-10 relative">
         
         <!-- SIDEBAR -->
-        <aside class="w-80 flex flex-col gap-6">
-            <!-- PROFILE -->
-            <div class="glass p-8 rounded-[35px]">
-                <div class="flex items-center gap-4 mb-8">
-                    <div class="w-14 h-14 rounded-2xl accent-gradient flex items-center justify-center font-bold text-xl shadow-lg border-2 border-white/20">A1</div>
-                    <div>
-                        <p class="text-[10px] font-black tracking-widest text-blue-400 uppercase">Analyst Alpha</p>
-                        <h2 class="text-lg font-bold" x-text="perf.rank">Analyst</h2>
+        <aside class="flex flex-col gap-4 w-64 shrink-0 h-full justify-between">
+            <nav class="flex flex-col gap-3 mt-4">
+                <button @click="currentTab = 'simulation'" 
+                        :class="currentTab === 'simulation' ? 'pulse-border bg-[#1a203a] text-white shadow-[inset_0_0_20px_rgba(59,130,246,0.1)]' : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'"
+                        class="glass-panel w-full p-4 flex items-center gap-4 transition-all rounded-2xl group border">
+                    <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400 border border-blue-500/30 group-hover:scale-110 transition-transform">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path></svg>
                     </div>
+                    <span class="font-black text-[11px] tracking-widest uppercase">Triage Inbox</span>
+                </button>
+                
+                <button @click="currentTab = 'scanner'" 
+                        :class="currentTab === 'scanner' ? 'pulse-border bg-[#1a203a] text-white shadow-[inset_0_0_20px_rgba(59,130,246,0.1)]' : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'"
+                        class="glass-panel w-full p-4 flex items-center gap-4 transition-all rounded-2xl group border">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 border border-indigo-500/30 group-hover:scale-110 transition-transform">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                    </div>
+                    <span class="font-black text-[11px] tracking-widest uppercase">Pro-Scanner</span>
+                </button>
+
+                <button @click="openAnalytics()" 
+                        :class="currentTab === 'analytics' ? 'pulse-border bg-[#1a203a] text-white shadow-[inset_0_0_20px_rgba(59,130,246,0.1)]' : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'"
+                        class="glass-panel w-full p-4 flex items-center gap-4 transition-all rounded-2xl group border">
+                    <div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400 border border-purple-500/30 group-hover:scale-110 transition-transform">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"></path></svg>
+                    </div>
+                    <span class="font-black text-[11px] tracking-widest uppercase">Analytics Yield</span>
+                </button>
+            </nav>
+            
+            <!-- SYSTEM CORE BADGE -->
+            <div class="glass-panel p-5 rounded-2xl border-blue-500/20 flex flex-col items-center justify-center relative overflow-hidden">
+                <div class="absolute inset-0 bg-blue-500/5 blur-xl"></div>
+                <span class="relative text-[8px] font-black text-blue-500 tracking-[0.2em] uppercase mb-1">System Core</span>
+                <span class="relative text-xs font-bold text-white mb-3">Node Active: 104-B</span>
+                <div class="relative w-full h-[2px] bg-gray-800 rounded-full">
+                    <div class="w-2/3 h-full bg-blue-400 shadow-[0_0_5px_#3b82f6]"></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- TRIAGE TAB (Inbox + Detail) -->
+        <div x-show="currentTab === 'simulation' || currentTab === 'gmail'" class="flex-1 flex gap-6 min-h-0 relative">
+            
+            <!-- OPERATIONAL QUEUE -->
+            <div class="w-80 flex flex-col shrink-0 h-full relative">
+                <!-- Title Row -->
+                <div class="flex justify-between items-center mb-4 px-2">
+                    <h2 class="text-[10px] font-black uppercase text-gray-500 tracking-widest">Operational Queue</h2>
+                    <span class="px-3 py-1 bg-blue-900/40 text-blue-400 text-[9px] font-black rounded-full border border-blue-500/20" x-text="inbox.length + ' TARGETS'"></span>
                 </div>
                 
-                <div class="space-y-6">
-                    <div>
-                        <div class="flex justify-between text-[11px] mb-2 font-black uppercase tracking-tighter">
-                            <span class="text-gray-400">Mission Progress</span>
-                            <span class="text-blue-400" x-text="perf.total_score.toFixed(2) + ' XP'">0 XP</span>
+                <!-- Queue List -->
+                <div class="flex-1 overflow-y-auto pr-2 flex flex-col gap-3">
+                    <template x-for="(email, idx) in inbox" :key="email.id">
+                        <div @click="openEmail(email)"
+                             :class="selectedEmail && selectedEmail.id === email.id ? 'border-blue-500 bg-blue-900/10 shadow-[0_0_15px_rgba(37,99,235,0.15)]' : 'border-gray-800 bg-gray-900/30 hover:border-gray-700'"
+                             class="glass-panel p-5 cursor-pointer transition-all border rounded-2xl relative overflow-hidden group">
+                           
+                            <!-- Active Status Pip -->
+                            <div class="absolute top-5 right-5 w-1.5 h-1.5 rounded-full" :class="selectedEmail && selectedEmail.id === email.id ? 'bg-blue-400 shadow-[0_0_5px_#60a5fa]' : 'bg-gray-700'"></div>
+                            
+                            <!-- Sender Tag -->
+                            <div class="inline-block px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[8px] font-black rounded uppercase tracking-widest mb-2 border border-blue-500/20" 
+                                 x-text="email.sender.split('@')[0].substring(0, 10)"></div>
+                            
+                            <!-- Subject -->
+                            <h3 class="font-bold text-gray-200 text-sm mb-1 truncate group-hover:text-white transition-colors" x-text="email.subject"></h3>
+                            
+                            <!-- Snippet -->
+                            <p class="text-xs text-gray-500 truncate" x-text="email.body"></p>
                         </div>
-                        <div class="h-3 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
-                            <div class="h-full accent-gradient transition-all" :style="'width: ' + perf.progress_percent + '%'"></div>
+                    </template>
+                    <template x-if="inbox.length === 0">
+                        <div class="flex-1 flex items-center justify-center text-gray-600 text-[10px] font-black uppercase tracking-widest border border-dashed border-gray-800 rounded-2xl">
+                            Queue Empty
                         </div>
-                    </div>
-                    
-                    <div class="flex gap-4">
-                        <div class="flex-1 bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
-                            <p class="text-white font-black text-xl" x-text="perf.current_streak">0</p>
-                            <p class="text-[9px] uppercase font-black text-gray-500 tracking-wider">Streak</p>
-                        </div>
-                        <div class="flex-1 bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
-                            <p class="text-white font-black text-xl">1.2.7</p>
-                            <p class="text-[9px] uppercase font-black text-gray-500 tracking-wider">Ver</p>
-                        </div>
-                    </div>
+                    </template>
                 </div>
             </div>
 
-            <!-- NAVIGATION -->
-            <nav class="glass flex-1 rounded-[35px] p-4 flex flex-col gap-2">
-                <button @click="currentTab = 'simulation'" :class="currentTab === 'simulation' ? 'accent-gradient text-white glow' : 'hover:bg-white/5 text-gray-400'" class="w-full p-5 rounded-2xl font-bold flex items-center gap-4 transition-all">
-                    <span>📊</span> Simulation
-                </button>
-                <button @click="currentTab = 'gmail'" :class="currentTab === 'gmail' ? 'accent-gradient text-white glow' : 'hover:bg-white/5 text-gray-400'" class="w-full p-5 rounded-2xl font-bold flex items-center gap-4 transition-all">
-                    <span>📫</span> Gmail v2.0
-                </button>
-                <button @click="openAnalytics()" :class="currentTab === 'analytics' ? 'accent-gradient text-white glow' : 'hover:bg-white/5 text-gray-400'" class="w-full p-5 rounded-2xl font-bold flex items-center gap-4 transition-all">
-                    <span>📈</span> Performance
-                </button>
-                <button @click="currentTab = 'scanner'" :class="currentTab === 'scanner' ? 'accent-gradient text-white glow' : 'hover:bg-white/5 text-gray-400'" class="w-full p-5 rounded-2xl font-bold flex items-center gap-4 transition-all">
-                    <span>🛡️</span> Scanner
-                </button>
+            <!-- MAIN EMAIL DETAIL VIEW -->
+            <div class="flex-1 glass-panel border bg-[#0a0d1a]/80 backdrop-blur-2xl rounded-3xl flex flex-col overflow-hidden relative border-white/5 border-t-white/10 shadow-2xl">
                 
-                <div class="mt-auto pt-6 px-4">
-                    <button @click="logout()" class="w-full p-4 border border-red-500/20 text-red-400 rounded-2xl font-black text-[10px] tracking-widest uppercase hover:bg-red-500/10 transition-all">Deauthorize</button>
-                </div>
-            </nav>
-        </aside>
-
-        <!-- MAIN CONTENT AREA -->
-        <main class="flex-1 flex flex-col gap-6 overflow-hidden">
-            
-            <!-- HEADER / STATS -->
-            <header class="glass h-24 rounded-[30px] flex items-center px-10 justify-between">
-                <div class="flex items-center gap-6">
-                    <div class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500 border-r border-white/10 pr-6">Mission Feed</div>
-                    <div class="flex items-center gap-3">
-                        <template x-if="currentTab === 'simulation'">
-                            <select x-model="selectedTask" @change="loadInbox()" class="bg-transparent text-sm font-bold focus:outline-none cursor-pointer hover:text-blue-400 transition-colors uppercase tracking-widest">
-                                <option value="easy">Easy (Simulation)</option>
-                                <option value="medium">Medium (Adversarial)</option>
-                                <option value="hard">Hard (Security Chaos)</option>
-                            </select>
-                        </template>
-                        <template x-if="currentTab === 'gmail'">
-                            <span class="text-sm font-bold uppercase tracking-widest">Real Gmail Inbox</span>
-                        </template>
-                    </div>
-                </div>
-                
-                <div class="flex items-center gap-6">
-                    <div class="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full">
-                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                        <span class="text-[10px] font-black text-green-400 uppercase tracking-widest">Environment Live</span>
-                    </div>
-                </div>
-            </header>
-
-            <!-- TAB CONTENT -->
-            <div class="flex-1 flex gap-6 overflow-hidden">
-                <!-- INBOX LIST -->
-                <div class="w-[450px] glass rounded-[40px] flex flex-col overflow-hidden">
-                    <div class="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-                        <h3 class="font-black text-sm uppercase tracking-widest">Active Inbox</h3>
-                        <template x-if="currentTab === 'gmail'">
-                             <button @click="fetchGmail()" class="text-[10px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest disabled:opacity-50" :disabled="isFetching">
-                                <span x-text="isFetching ? 'Fetching...' : '[ Refresh ]'"></span>
-                             </button>
-                        </template>
-                    </div>
-                    <div class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                        <template x-for="email in inbox" :key="email.id">
-                            <div @click="openEmail(email)" 
-                                 :class="selectedEmail && selectedEmail.id === email.id ? 'bg-blue-600/20 border-blue-500 shadow-lg glow' : 'hover:bg-white/5 border-white/5'"
-                                 class="p-6 rounded-3xl border transition-all cursor-pointer group relative overflow-hidden">
-                                <div class="flex justify-between items-start mb-2">
-                                    <span class="text-[10px] text-blue-400 font-bold" x-text="email.sender"></span>
-                                    <span class="text-[9px] text-gray-500 mono font-bold">12:00</span>
-                                </div>
-                                <h4 class="font-bold text-sm text-gray-200 group-hover:text-white transition-colors truncate" x-text="email.subject"></h4>
-                            </div>
-                        </template>
-                        <template x-if="inbox.length === 0">
-                            <div class="p-20 text-center opacity-30 select-none">
-                                <div class="text-5xl mb-4">📭</div>
-                                <p class="text-xs font-black uppercase tracking-widest">Inbox Deciphered</p>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
-                <!-- EMAIL VIEW / ACTIONS -->
-                <div class="flex-1 glass rounded-[40px] flex flex-col overflow-hidden relative">
-                    <template x-if="selectedEmail">
-                        <div class="flex flex-col h-full animate-fadeIn">
-                            <div class="p-10 border-b border-white/5">
-                                <div class="flex justify-between items-start mb-6">
-                                    <div class="flex gap-4">
-                                        <div class="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl">👤</div>
-                                        <div>
-                                            <h2 class="text-2xl font-black mb-1 capitalize tracking-tight" x-text="selectedEmail.subject"></h2>
-                                            <p class="text-sm text-blue-400 font-medium" x-text="selectedEmail.sender"></p>
-                                        </div>
-                                    </div>
-                                    <div class="bg-blue-500/10 border border-blue-500/30 px-4 py-2 rounded-xl">
-                                        <p class="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1">Risk Score</p>
-                                        <p class="text-xl font-black text-white text-center">--</p>
-                                    </div>
+                <template x-if="selectedEmail">
+                    <div class="flex flex-col h-full z-10 animate-fadeIn">
+                        <!-- Detail Header -->
+                        <div class="p-10 shrink-0 relative">
+                            <!-- Background typography watermark -->
+                            <div class="absolute right-10 top-10 text-[120px] font-black text-white/[0.01] uppercase tracking-tighter leading-none select-none pointer-events-none">TARGET</div>
+                            
+                            <div class="flex justify-between items-start mb-6 w-full">
+                                <h1 class="text-4xl font-black text-white tracking-tight break-words max-w-3xl leading-tight drop-shadow-lg" x-text="selectedEmail.subject"></h1>
+                                <div class="glass-panel px-4 py-2 border-white/10 flex flex-col items-center ml-4 shrink-0 shadow-lg">
+                                    <span class="text-[8px] font-black uppercase tracking-widest text-gray-500 mb-0.5">Node ID</span>
+                                    <span class="text-lg font-black text-blue-400" x-text="'#' + selectedEmail.id"></span>
                                 </div>
                             </div>
                             
-                            <div class="flex-1 p-10 overflow-y-auto leading-relaxed text-gray-300 text-lg mono italic">
-                                <div class="bg-white/[0.02] p-8 rounded-[30px] border border-white/5 min-h-full shadow-inner" x-text="selectedEmail.body"></div>
-                            </div>
-
-                            <!-- TRIAGE ACTIONS -->
-                            <div class="p-10 bg-[#0b0f19]/80 backdrop-blur-3xl border-t border-white/5">
-                                <p class="text-[11px] font-black text-gray-500 uppercase tracking-[0.5em] mb-8 text-center">Execute Response Protocol</p>
-                                <div class="flex items-center gap-6">
-                                    <div class="flex-1 grid grid-cols-3 gap-4">
-                                        <button @click="submitTriage('ignore', 'low')" class="p-6 rounded-2xl border border-white/10 hover:bg-white/10 font-bold transition-all text-gray-400 hover:text-white group">
-                                            <div class="text-2xl mb-1 group-hover:scale-125 transition-transform">🗑️</div>
-                                            IGNORE
-                                        </button>
-                                        <button @click="submitTriage('reply', 'medium')" class="p-6 rounded-2xl border border-blue-500/20 hover:bg-blue-500/20 font-bold transition-all text-blue-400 group">
-                                            <div class="text-2xl mb-1 group-hover:scale-125 transition-transform">📝</div>
-                                            REPLY
-                                        </button>
-                                        <button @click="submitTriage('escalate', 'high')" class="p-6 rounded-2xl border border-red-500/20 hover:bg-red-500/20 font-bold transition-all text-red-500 group">
-                                            <div class="text-2xl mb-1 group-hover:scale-125 transition-transform">🚨</div>
-                                            ESCALATE
-                                        </button>
+                            <div class="flex items-center gap-4 mt-2">
+                                <div class="w-12 h-12 bg-indigo-500/20 text-indigo-400 font-bold text-xl rounded-full flex items-center justify-center border border-indigo-500/30 shadow-inner block shrink-0" 
+                                     x-text="selectedEmail.sender.charAt(0).toUpperCase()"></div>
+                                <div>
+                                    <h2 class="text-lg font-bold text-gray-200" x-text="selectedEmail.sender"></h2>
+                                    <div class="flex items-center gap-1.5 mt-0.5">
+                                        <div class="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_5px_#22c55e]"></div>
+                                        <p class="text-[9px] font-black uppercase tracking-[0.2em] text-green-500">Verified Target</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </template>
-                    
-                    <template x-if="!selectedEmail">
-                        <div class="h-full flex flex-col items-center justify-center text-center p-20 opacity-30 select-none">
-                            <div class="w-24 h-24 rounded-[30px] bg-white/5 border border-white/10 mb-8 flex items-center justify-center text-4xl shadow-inner">👁️</div>
-                            <h3 class="text-2xl font-black uppercase tracking-widest mb-4">Neural Link Ready</h3>
-                            <p class="max-w-md text-sm leading-relaxed">Select specialized records from the left encrypted buffer to begin triage or fetch live telemetry from Gmail.</p>
-                        </div>
-                    </template>
-                </div>
-            </div>
 
-            <!-- SCANNER TIER (Hidden if not active) -->
-            <div x-show="currentTab === 'scanner'" x-cloak class="flex-1 glass rounded-[40px] flex flex-col p-12">
-                <div class="max-w-4xl mx-auto w-full">
-                    <h2 class="text-4xl font-black mb-2 tracking-tight">Pro-Scanner <span class="text-blue-500">v2.0</span></h2>
-                    <p class="text-gray-400 mb-12">Stateless analysis of suspicious strings powered by keyword entropy.</p>
-                    
-                    <div class="space-y-8">
-                        <div class="relative">
-                            <textarea x-model="scanText" placeholder="Paste suspicious content here..." 
-                                      class="w-full h-64 bg-white/5 border border-white/10 p-10 rounded-[40px] focus:outline-none focus:border-blue-500 transition-all font-medium text-lg leading-relaxed mono shadow-inner"></textarea>
-                            <button @click="runScan()" :disabled="isScanning" class="absolute bottom-10 right-10 accent-gradient px-12 py-5 rounded-2xl font-bold shadow-2xl hover:scale-[1.05] transition-all disabled:opacity-50">
-                                <span x-text="isScanning ? 'Scanning...' : 'INITIATE DEEP SCAN'"></span>
-                            </button>
+                        <!-- Email Body content -->
+                        <div class="flex-1 overflow-y-auto px-10 pb-10 flex items-center justify-center">
+                            <div class="w-full max-w-4xl glass-panel p-10 bg-black/40 border-gray-800 rounded-3xl min-h-[200px] flex items-center justify-center shadow-inner relative overflow-hidden group">
+                                <p class="text-lg text-gray-300 font-medium leading-relaxed relative z-10 text-center" x-text="selectedEmail.body"></p>
+                            </div>
                         </div>
-                        
-                        <div x-show="scanResult" x-transition class="glass p-10 rounded-[40px] border-l-8 border-blue-500 animate-slideUp">
-                            <div class="flex items-start gap-10">
-                                <div class="text-center bg-white/5 p-8 rounded-3xl border border-white/5 shadow-inner grow-0">
-                                    <p class="text-4xl font-black text-blue-400 mb-2" x-text="(scanResult.scam_likelihood * 100).toFixed(0) + '%'"></p>
-                                    <p class="text-[10px] font-black uppercase tracking-widest text-gray-500">Threat Level</p>
-                                </div>
-                                <div class="flex-1">
-                                    <h4 class="text-2xl font-black mb-4 uppercase tracking-tighter">Recommended Response</h4>
-                                    <div class="flex gap-4 mb-4">
-                                        <span class="px-6 py-2 bg-blue-500/20 text-blue-400 rounded-full font-black text-xs uppercase" x-text="scanResult.suggested_action"></span>
-                                        <span class="px-6 py-2 bg-white/10 text-white rounded-full font-black text-xs uppercase" x-text="scanResult.suggested_priority + ' PRIORITY'"></span>
-                                    </div>
-                                    <p class="text-gray-400 italic font-medium leading-relaxed">Analysis suggests high keyword frequency typically associated with unauthorized access attempts. Escalation recommended for security review.</p>
+
+                        <!-- ACTIONS FOOTER -->
+                        <div class="p-8 shrink-0 relative flex flex-col items-center z-20">
+                            <!-- Divider line -->
+                            <div class="absolute top-0 left-1/2 -translate-x-1/2 w-4/5 flex items-center justify-center">
+                                <div class="h-px w-full bg-gradient-to-r from-transparent via-gray-700 to-transparent"></div>
+                                <span class="absolute bg-[#0a0d1a] px-4 text-[8px] font-black tracking-[0.3em] uppercase text-gray-600">Secure Operational Override</span>
+                            </div>
+                            
+                            <div class="pt-8 flex items-stretch gap-6 w-full max-w-4xl justify-center">
+                                
+                                <!-- Triage Buttons -->
+                                <button @click="submitTriage('reply', 'medium')" :disabled="isTriageProcessing"
+                                        class="btn-reply flex-1 py-5 rounded-2xl font-black text-xl text-white tracking-wide btn-hover btn-active disabled:opacity-50 disabled:cursor-not-allowed">
+                                    REPLY
+                                </button>
+                                
+                                <button @click="submitTriage('ignore', 'low')" :disabled="isTriageProcessing"
+                                        class="btn-ignore flex-1 py-5 rounded-2xl font-black text-xl text-white tracking-wide btn-hover btn-active opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed border border-gray-600">
+                                    IGNORE
+                                </button>
+                                
+                                <button @click="submitTriage('escalate', 'high')" :disabled="isTriageProcessing"
+                                        class="btn-escalate flex-1 py-5 rounded-2xl font-black text-xl text-white tracking-wide btn-hover btn-active disabled:opacity-50 disabled:cursor-not-allowed">
+                                    ESCALATE
+                                </button>
+
+                                <!-- Yield Module Display Panel (replacing the popup modal) -->
+                                <div class="glass-panel ml-4 w-48 flex flex-col items-center justify-center rounded-2xl border-white/10 shrink-0 shadow-xl overflow-hidden relative" :class="recentScore !== null ? (recentScore > 0.5 ? 'border border-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.1)]' : 'border border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)]') : ''">
+                                    <div class="absolute inset-0 opacity-10 transition-colors duration-500" :class="recentScore !== null ? (recentScore > 0.5 ? 'bg-green-500' : 'bg-red-500') : ''"></div>
+                                    <span class="relative text-[9px] font-black text-gray-400 tracking-[0.2em] uppercase mb-1">Yield Pos</span>
+                                    <span class="relative text-4xl font-black text-white transition-all duration-300 transform scale-100" 
+                                          :class="recentAnim ? 'scale-125 text-blue-400' : ''"
+                                          x-text="recentScore !== null ? recentScore.toFixed(1) : '--'"></span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
+                </template>
 
-            <!-- ANALYTICS TIER -->
-            <div x-show="currentTab === 'analytics'" x-cloak class="flex-1 glass rounded-[40px] flex flex-col p-12 overflow-hidden">
-                <div class="flex justify-between items-end mb-12">
-                    <div>
-                        <h2 class="text-4xl font-black mb-2 tracking-tight">Performance <span class="text-blue-500">Telemetry</span></h2>
-                        <p class="text-gray-400">Real-time yields across active sub-tasks.</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Cumulative XP</p>
-                        <p class="text-4xl font-black text-white" x-text="perf.total_score.toFixed(2)"></p>
-                    </div>
-                </div>
-                
-                <div class="flex-1 min-h-0 bg-white/[0.02] border border-white/5 rounded-[40px] p-8 shadow-inner overflow-hidden">
-                    <canvas id="yieldChart"></canvas>
-                </div>
-            </div>
-
-        </main>
-    </div>
-
-    <!-- RESULT OVERLAY MODAL -->
-    <div x-show="showResult" x-transition.opacity class="fixed inset-0 z-[300] flex items-center justify-center bg-[#0b0f19]/90 backdrop-blur-xl">
-        <div class="glass p-16 rounded-[60px] max-w-2xl w-full text-center animate-fadeIn border-t-[6px] shadow-[0_30px_100px_rgba(0,0,0,0.8)]" :class="resultIsSuccess ? 'border-green-500 shadow-green-500/10' : 'border-red-500 shadow-red-500/10'">
-            <div class="mb-10 relative">
-                <template x-if="resultIsSuccess">
-                    <div>
-                        <div class="absolute inset-0 bg-green-500/20 blur-3xl rounded-full"></div>
-                        <div class="relative w-32 h-32 bg-green-500/10 border border-green-500/30 text-green-400 rounded-full flex items-center justify-center text-6xl mx-auto shadow-[inset_0_0_30px_rgba(34,197,94,0.2)]">✓</div>
+                <!-- NO EMAIL SELECTED STATE -->
+                <template x-if="!selectedEmail">
+                    <div class="h-full flex flex-col items-center justify-center text-center p-20 opacity-30 select-none">
+                        <div class="w-16 h-16 border-4 border-gray-700 border-t-blue-500 rounded-full animate-spin mb-6"></div>
+                        <h3 class="text-xl font-black uppercase tracking-widest mb-2">Awaiting Directive</h3>
+                        <p class="text-xs">Select a target from the operational queue to proceed.</p>
                     </div>
                 </template>
-                <template x-if="!resultIsSuccess">
-                    <div>
-                        <div class="absolute inset-0 bg-red-500/20 blur-3xl rounded-full"></div>
-                        <div class="relative w-32 h-32 bg-red-500/10 border border-red-500/30 text-red-500 rounded-full flex items-center justify-center text-6xl mx-auto shadow-[inset_0_0_30px_rgba(239,68,68,0.2)]">!</div>
-                    </div>
-                </template>
-            </div>
-            <h3 class="text-5xl font-black text-white mb-6 tracking-tight drop-shadow-md" x-text="resultIsSuccess ? 'Decision Correct' : 'Threat Misinterpreted!'"></h3>
-            <div class="inline-block px-10 py-4 bg-gray-900/60 rounded-[30px] mb-10 border border-white/5 shadow-inner">
-                <span class="text-5xl font-black block mb-3 drop-shadow-[0_0_15px_currentColor]" :class="resultIsSuccess ? 'text-green-400' : 'text-red-500'" x-text="'+' + resultScore + ' XP'"></span>
-                <span class="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em]" x-text="resultExpected"></span>
-            </div>
-            <p class="text-2xl text-gray-300 font-medium leading-relaxed italic px-8" x-text="resultReason"></p>
-            <div class="mt-12 pt-10 border-t border-white/5">
-                <p class="text-[11px] font-black text-blue-500 uppercase tracking-[0.6em] animate-pulse">Syncing Telemetry...</p>
             </div>
         </div>
+
+        <!-- SCANNER TAB -->
+        <div x-show="currentTab === 'scanner'" x-cloak class="flex-1 glass-panel p-12 border-white/5 rounded-3xl overflow-y-auto">
+            <h2 class="text-2xl font-black uppercase tracking-[0.2em] mb-8">Pro-Scanner</h2>
+            <textarea x-model="scanText" placeholder="Paste string vector here for stateless anomaly extraction..." 
+                      class="w-full h-48 bg-black/30 border border-gray-800 p-8 rounded-2xl focus:outline-none focus:border-blue-500 text-gray-300 font-mono text-sm leading-relaxed mb-6"></textarea>
+            
+            <button @click="runScan()" :disabled="isScanning" class="btn-reply px-10 py-4 rounded-xl font-black tracking-widest text-sm text-white hover:scale-[1.02] active:scale-95 transition-all">
+                <span x-text="isScanning ? 'PROCESSING...' : 'INITIATE ANALYSIS'"></span>
+            </button>
+
+            <template x-if="scanResult">
+                <div class="mt-10 p-8 glass-panel border-l-4" :class="scanResult.scam_likelihood > 0.5 ? 'border-red-500' : 'border-blue-500'">
+                    <div class="flex gap-8 items-center">
+                        <div class="text-center">
+                            <p class="text-5xl font-black" :class="scanResult.scam_likelihood > 0.5 ? 'text-red-500' : 'text-blue-500'" x-text="(scanResult.scam_likelihood * 100).toFixed(0) + '%'"></p>
+                            <p class="text-[9px] uppercase tracking-widest text-gray-500 mt-2">Threat Delta</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-300 font-bold mb-2">Suggested Override:</p>
+                            <div class="flex gap-4">
+                                <span class="px-4 py-1 rounded bg-black border border-gray-800 text-xs font-black uppercase text-gray-400" x-text="scanResult.suggested_action"></span>
+                                <span class="px-4 py-1 rounded bg-black border border-gray-800 text-xs font-black uppercase text-gray-400" x-text="scanResult.suggested_priority"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- ANALYTICS TAB -->
+        <div x-show="currentTab === 'analytics'" x-cloak class="flex-1 glass-panel p-12 border-white/5 rounded-3xl flex flex-col">
+            <h2 class="text-2xl font-black uppercase tracking-[0.2em] mb-8 shrink-0">Analytics Yield</h2>
+            <div class="flex-1 bg-black/40 rounded-2xl border border-gray-800 p-6 min-h-0 relative">
+                <canvas id="yieldChart"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <!-- FLOATING NOTIFICATION -->
+    <div x-show="notif.show" x-transition.opacity.duration.300ms class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[400] glass-panel px-6 py-3 rounded-full border-blue-500/50 flex items-center gap-3 backdrop-blur-3xl shadow-[0_10px_25px_rgba(0,0,0,0.5)]">
+        <span class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+        <span class="font-bold text-xs uppercase tracking-widest text-blue-100" x-text="notif.text"></span>
     </div>
 
-    <!-- NOTIFICATION -->
-    <div x-show="notif.show" x-transition.slide.right class="fixed top-10 right-10 z-[400] glass px-8 py-4 rounded-2xl border-l-4 border-blue-500 flex items-center gap-4 shadow-2xl">
-        <span class="text-xl">🔔</span>
-        <span class="font-bold text-sm" x-text="notif.text"></span>
-    </div>
-
+    <!-- LOGIC SCRIPT -->
     <script>
         function triageApp() {
             return {
-                isLoggedIn: false,
-                loginUser: '',
-                loginPass: '',
                 currentTab: 'simulation',
                 selectedTask: 'easy',
                 inbox: [],
                 selectedEmail: null,
-                perf: { total_score: 0, current_streak: 0, rank: 'Novice Analyst', progress_percent: 0 },
+                perf: { total_score: 0, current_streak: 0, rank: 'NOVICE ANALYST', progress_percent: 0 },
+                
                 scanText: '',
                 scanResult: null,
                 isScanning: false,
-                isFetching: false,
                 isTriageProcessing: false,
                 
-                showResult: false,
-                resultScore: 0,
-                resultReason: '',
-                resultExpected: '',
-                resultIsSuccess: true,
+                recentScore: null,
+                recentAnim: false,
+                
                 historyYields: [],
                 chartInstance: null,
                 notif: { show: false, text: '' },
 
-                checkAuth() {
-                    if(localStorage.getItem('mfde_auth') === 'true') {
-                        this.isLoggedIn = true;
-                        this.loadInbox();
-                    }
+                initApp() {
+                    // Straight to dashboard, load active queue
+                    this.loadInbox();
+                    this.notify("System Online. Neural Link established.");
                 },
-                login() {
-                    if(this.loginUser === 'admin' && this.loginPass === 'mfde2024') {
-                        this.isLoggedIn = true;
-                        localStorage.setItem('mfde_auth', 'true');
-                        this.loadInbox();
-                        this.updatePerf();
-                        this.notify("Analyst Authorized. Welcome to MFDE v2.0.");
-                    } else {
-                        alert("UNAUTHORIZED ACCESS: Authentication Failure");
-                    }
-                },
-                logout() {
-                    this.isLoggedIn = false;
-                    localStorage.removeItem('mfde_auth');
-                    this.notify("Deauthorized.");
-                },
+
                 notify(msg) {
                     this.notif.text = msg;
                     this.notif.show = true;
-                    setTimeout(() => { this.notif.show = false; }, 3000);
+                    setTimeout(() => { this.notif.show = false; }, 3500);
                 },
+
                 async updatePerf() {
-                    const res = await fetch('/api/performance');
-                    this.perf = await res.json();
+                    try {
+                        const res = await fetch('/api/performance');
+                        this.perf = await res.json();
+                    } catch (e) {
+                         console.warn("Performance sync failed", e);
+                    }
                 },
+
                 async loadInbox() {
                     try {
-                        let endpoint = `/api/inbox/${this.selectedTask}`;
-                        if(this.currentTab === 'gmail') endpoint = `/api/inbox/gmail`;
-                        
+                        let taskType = this.selectedTask;
+                        if(taskType === 'gmail') {
+                            // If they clicked Live Telemetry, automatically try to fetch real emails if needed
+                            // For simplicity, we just trigger the inbox load. In a real scenario we'd call /api/gmail/fetch here first.
+                        }
+
+                        const endpoint = `/api/inbox/${taskType}`;
                         const res = await fetch(endpoint);
                         this.inbox = await res.json();
+                        
                         this.selectedEmail = null;
-                        this.latestReward = null;
+                        this.recentScore = null;
                         this.historyYields = [];
                         
+                        // Send Reset POST to backend to sync standard environment tracking
                         await fetch('/reset', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ task: this.currentTab === 'simulation' ? this.selectedTask : 'gmail', mode: 'infinite' })
+                            body: JSON.stringify({ task: taskType, mode: 'infinite' })
                         });
                         
                         await this.updatePerf();
                         this.updateChart();
                     } catch (e) {
-                        this.notify("Buffer error: sync failed.");
+                        this.notify("Sync Error: " + e.message);
                     }
                 },
-                async fetchGmail() {
-                    this.isFetching = true;
-                    try {
-                        const res = await fetch('/api/gmail/fetch', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ max_emails: 10 })
-                        });
-                        const data = await res.json();
-                        this.notify(`Live Telemetry Sync: ${data.count} emails loaded.`);
-                        this.loadInbox();
-                    } catch (e) {
-                        this.notify("Gmail Sync Error: Backend Offline.");
-                    }
-                    this.isFetching = false;
-                },
+
                 openEmail(email) {
                     this.selectedEmail = email;
-                    this.showResult = false;
+                    this.recentScore = null;
                 },
+
                 openAnalytics() {
                     this.currentTab = 'analytics';
-                    setTimeout(() => { this.initChart(); }, 100);
+                    setTimeout(() => { this.initChart(); }, 50);
                 },
+
+                // --- CHART LOGIC KEEP IDENTICAL TO FIXES ---
                 initChart() {
                     const ctx = document.getElementById('yieldChart');
                     if(!ctx) return;
                     if(this.chartInstance) this.chartInstance.destroy();
                     
-                    Chart.defaults.color = '#9ca3af';
-                    Chart.defaults.font.family = 'JetBrains Mono';
+                    Chart.defaults.color = '#4b5563';
+                    Chart.defaults.font.family = 'Inter';
                     
                     this.chartInstance = new Chart(ctx, {
                         type: 'line',
@@ -464,12 +434,11 @@
                                 data: this.historyYields,
                                 borderColor: '#3b82f6',
                                 backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                                borderWidth: 3,
+                                borderWidth: 2,
                                 fill: true,
-                                tension: 0.4,
-                                pointBackgroundColor: '#8b5cf6',
-                                pointBorderWidth: 2,
-                                pointRadius: 5
+                                tension: 0.3,
+                                pointBackgroundColor: '#60a5fa',
+                                pointRadius: 4
                             }]
                         },
                         options: {
@@ -477,21 +446,26 @@
                             maintainAspectRatio: false,
                             plugins: { legend: { display: false } },
                             scales: {
-                                y: { grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true },
+                                y: { grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true, max: 1.0 },
                                 x: { grid: { display: false } }
                             }
                         }
                     });
                 },
+
                 updateChart() {
                     if(this.chartInstance) {
-                        this.chartInstance.data.labels = this.historyYields.map((_, i) => 'Op ' + (i+1));
-                        this.chartInstance.data.datasets[0].data = this.historyYields;
-                        this.chartInstance.update();
+                        try {
+                            this.chartInstance.data.labels = this.historyYields.map((_, i) => 'Op ' + (i+1));
+                            this.chartInstance.data.datasets[0].data = this.historyYields;
+                            this.chartInstance.update();
+                        } catch(e) { /* Hidden tabs chart error ignored */ }
                     }
                 },
+
+                // --- CORE TRIAGE LOGIC ---
                 async submitTriage(decision, priority) {
-                    if(this.isTriageProcessing) return;
+                    if(!this.selectedEmail || this.isTriageProcessing) return;
                     this.isTriageProcessing = true;
                     
                     try {
@@ -505,31 +479,35 @@
                         this.historyYields.push(data.reward);
                         this.updateChart();
                         
-                        this.resultScore = data.reward;
-                        this.resultReason = data.info.reason;
-                        this.resultExpected = "Expected: " + data.info.correct_decision.toUpperCase() + " / " + data.info.correct_priority.toUpperCase();
-                        this.resultIsSuccess = (data.reward > 0.5);
-                        this.showResult = true;
+                        // Silent update
+                        this.recentScore = data.reward;
+                        this.recentAnim = true;
+                        setTimeout(() => { this.recentAnim = false; }, 300);
                         
                         await this.updatePerf();
                         
+                        // Progress to next email smoothly
                         const currentIndex = this.inbox.findIndex(e => e.id === this.selectedEmail.id);
                         setTimeout(() => {
-                            this.showResult = false;
-                            if(currentIndex < this.inbox.length - 1) {
+                            if(currentIndex > -1 && currentIndex < this.inbox.length - 1) {
                                 this.selectedEmail = this.inbox[currentIndex + 1];
+                            } else if (currentIndex === this.inbox.length - 1) {
+                                // Reached end of batch, soft pull again if needed or stay empty
+                                this.selectedEmail = null;
                             }
                             this.isTriageProcessing = false;
-                        }, 3500);
+                        }, 800);
                         
                     } catch (e) {
-                        this.notify("Processing Error: Step failed.");
+                        this.notify("API Error: " + (e.message || String(e)));
                         this.isTriageProcessing = false;
                     }
                 },
+
+                // --- SCAN LOGIC ---
                 async runScan() {
+                    if(!this.scanText) return;
                     this.isScanning = true;
-                    this.scanResult = null;
                     try {
                         const res = await fetch('/api/scan', {
                             method: 'POST',
@@ -537,9 +515,8 @@
                             body: JSON.stringify({text: this.scanText})
                         });
                         this.scanResult = await res.json();
-                        this.notify("Deep Scan Complete.");
                     } catch (e) {
-                        this.notify("Scan failed: server offline.");
+                        this.notify("Scan offline.");
                     }
                     this.isScanning = false;
                 }
