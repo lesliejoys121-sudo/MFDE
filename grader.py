@@ -1,5 +1,18 @@
 from typing import List, Dict
 
+# ── Per-task grader registry (required by OpenEnv evaluator) ──────────────────
+GRADERS = {
+    "easy":   "deterministic",
+    "medium": "deterministic",
+    "hard":   "deterministic",
+    "gmail":  "heuristic",
+}
+
+def get_grader(task_name: str) -> str:
+    """Return the grader type for a given task name."""
+    return GRADERS.get(task_name, "deterministic")
+
+
 def grade_step(predicted: dict, true: dict) -> float:
     """
     Core grading logic for a single decision.
@@ -16,9 +29,10 @@ def grade_step(predicted: dict, true: dict) -> float:
 
     return 0.01
 
-def grade(history: List[Dict]) -> float:
+
+def grade(history: List[Dict], task_name: str = "easy") -> float:
     """
-    Task Grader following requested [0.99, 0.3, 0.01] format.
+    Task Grader following [0.99, 0.3, 0.01] format.
     Calculates the average of all step grades.
     """
     if not history:
@@ -30,6 +44,21 @@ def grade(history: List[Dict]) -> float:
 
     average_score = total_score / len(history)
     return round(max(0.01, min(0.99, average_score)), 4)
+
+
+def grade_easy(history: List[Dict]) -> float:
+    """Grader for the 'easy' task."""
+    return grade(history, task_name="easy")
+
+
+def grade_medium(history: List[Dict]) -> float:
+    """Grader for the 'medium' task."""
+    return grade(history, task_name="medium")
+
+
+def grade_hard(history: List[Dict]) -> float:
+    """Grader for the 'hard' task."""
+    return grade(history, task_name="hard")
 
 
 def grade_gmail(results: List[Dict]) -> dict:

@@ -24,6 +24,7 @@ tasks:
     grader: deterministic
     description: "Highly deceptive emails, strong misleading feedback (~50%). 10 emails."
   - name: gmail
+    grader: heuristic
     description: "Real Gmail inbox emails. No ground-truth labels. AI-graded."
 endpoints:
   reset:         {method: POST, path: /reset}
