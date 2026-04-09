@@ -8,9 +8,9 @@ class MFDEEnv:
     def __init__(self):
         self.task_name = "easy"
         self.mode = "simulation"
-        self.total_score = 0.01
-        self.cumulative_xp = 0.01
-        self.session_score = 0.01
+        self.total_score = 0.0
+        self.cumulative_xp = 0.0
+        self.session_score = 0.0
         self.is_done = False
         self.history = []
         self.current_step = 0
@@ -61,7 +61,7 @@ class MFDEEnv:
         self.mode = mode
         self.current_step = 0
         self.current_streak = 0
-        self.total_score = 0.01
+        self.total_score = 0.0
         self.is_done = False
         self.history = []
 
@@ -89,7 +89,7 @@ class MFDEEnv:
         prediction = "escalate" if score > 0.4 else ("reply" if score > 0.1 else "ignore")
         priority = "high" if score > 0.6 else ("medium" if score > 0.2 else "low")
         return {
-            "scam_likelihood": round(max(0.01, min(0.99, score)), 2),
+            "scam_likelihood": round(max(0.0, min(1.0, score)), 2),
             "suggested_action": prediction,
             "suggested_priority": priority,
             "detected_patterns": matches[:3]
@@ -129,20 +129,20 @@ class MFDEEnv:
         base_reward = (0.6 if decision_match else 0.0) + (0.4 if priority_match else 0.0)
 
         if decision_match and priority_match:
-            true_reward = 0.99
+            true_reward = 0.98
             self.current_streak += 1
         elif decision_match:
-            true_reward = 0.3
+            true_reward = 0.55
             self.current_streak = 0
         else:
-            true_reward = 0.01
+            true_reward = 0.02
             self.current_streak = 0
 
         self.cumulative_xp += true_reward
         self.session_score += true_reward
 
         average = self.cumulative_xp / (self.current_step + 1)
-        self.total_score = round(max(0.01, min(0.99, average)), 4)
+        self.total_score = round(max(0.00, min(0.99, average)), 4)
 
         self.history.append({
             "step": self.current_step,
@@ -159,7 +159,7 @@ class MFDEEnv:
         noise_prob = task_data.get("reward_noise_prob", 0.0) if not self._using_gmail else 0.0
         if random.random() < noise_prob:
             noise = random.uniform(-0.1, 0.1)
-            feedback_reward = round(max(0.01, min(0.99, true_reward + noise)), 2)
+            feedback_reward = round(max(0.00, min(0.99, true_reward + noise)), 2)
 
         self.current_step += 1
 
