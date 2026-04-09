@@ -11,7 +11,7 @@ app_port: 7860
 
 [![OpenEnv](https://img.shields.io/badge/Spec-OpenEnv--1.0-blue)](https://github.com/openenv)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-HuggingFace-yellow)](https://huggingface.co/spaces)
+[![Platform](https://img.shields.io/badge/Platform-HuggingFace-yellow)](https://huggingface.co/spaces/Roshan10000/MFDE)
 
 MFDE is a professional-grade **Email Triage Simulation** designed to evaluate and train AI agents in handling **high-stakes decisions under misleading feedback**.
 

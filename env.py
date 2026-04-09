@@ -71,7 +71,6 @@ class MFDEEnv:
         self.is_done = False
         self.history = []
 
-        emails = self._active_emails()
         if mode == "simulation" and not self._using_gmail:
             # We don't shuffle Gmail emails to keep user context
             random.shuffle(TASKS[self.task_name]["emails"])
@@ -104,15 +103,15 @@ class MFDEEnv:
     def _get_obs(self) -> Observation:
         emails = self._active_emails()
         if not emails:
-            # Fallback for empty gmail fetch
             return Observation(email_text="", sender="", subject="", step_count=0)
-            
-        email = emails[self.current_step]
+        # Guard against out-of-bounds
+        idx = min(self.current_step, len(emails) - 1)
+        email = emails[idx]
         return Observation(
             email_text=email["email_text"],
             sender=email["sender"],
             subject=email["subject"],
-            step_count=self.current_step
+            step_count=idx
         )
 
     def step(self, action: Action) -> Tuple[Observation, Reward, bool, Dict[str, Any]]:
@@ -187,8 +186,9 @@ class MFDEEnv:
         return obs_to_return, Reward(value=feedback_reward), self.is_done, {
             "true_reward": true_reward,
             "streak": self.current_streak,
-            "correct_decision": email.get("correct_decision", "n/a"),
-            "correct_priority": email.get("correct_priority", "n/a")
+            "correct_decision": email.get("correct_decision") or "n/a",
+            "correct_priority": email.get("correct_priority") or "n/a",
+            "reason": email.get("reason") or "No additional context available."
         }
 
     def _get_obs_last(self) -> Observation:
