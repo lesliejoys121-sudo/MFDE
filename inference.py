@@ -21,11 +21,9 @@ import json
 import time
 import argparse
 import requests
+import openai
 
-BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-MODEL_NAME = os.environ.get("MODEL_NAME", "claude-sonnet-4-20250514")
-ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+ENV_BASE_URL = os.environ.get("ENV_BASE_URL", "http://localhost:8000")
 
 TRIAGE_SYSTEM = """You are an expert email security and triage AI.
 Classify each email into one action and one priority level.
@@ -45,48 +43,38 @@ Respond ONLY with JSON, no markdown, no explanation:
 
 
 def ai_triage(email_text: str, sender: str, subject: str) -> dict:
-    """Call Claude to triage a single email."""
-    if not ANTHROPIC_API_KEY:
-        # Fallback heuristic if no API key
-        text = email_text.lower()
-        if any(k in text for k in ["urgent", "password", "security", "breach", "legal", "crashed"]):
-            return {"decision": "escalate", "priority": "high", "reason": "Heuristic: high-risk keywords detected."}
-        elif any(k in text for k in ["meeting", "invoice", "review", "help", "request"]):
-            return {"decision": "reply", "priority": "medium", "reason": "Heuristic: actionable request detected."}
-        else:
-            return {"decision": "ignore", "priority": "low", "reason": "Heuristic: low-signal email."}
-
-    headers = {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-    }
-    payload = {
-        "model": MODEL_NAME,
-        "max_tokens": 200,
-        "system": TRIAGE_SYSTEM,
-        "messages": [{
-            "role": "user",
-            "content": f"From: {sender}\nSubject: {subject}\nBody: {email_text}"
-        }]
-    }
-    resp = requests.post(ANTHROPIC_URL, headers=headers, json=payload, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-    text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
-    clean = text.replace("```json", "").replace("```", "").strip()
+    """Strict evaluation proxy route explicitly following OpenEnv guidelines."""
+    # Ensure they exist or gracefully default to standard openai variables locally
+    api_base = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
+    api_key = os.environ.get("API_KEY", "dummy_key")
+    
+    client = openai.OpenAI(
+        base_url=api_base,
+        api_key=api_key
+    )
+    
+    response = client.chat.completions.create(
+        model=os.environ.get("MODEL_NAME", "gpt-4o"),
+        messages=[
+            {"role": "system", "content": TRIAGE_SYSTEM},
+            {"role": "user", "content": f"From: {sender}\nSubject: {subject}\nBody: {email_text}"}
+        ],
+        max_tokens=200,
+        temperature=0.0
+    )
+    
+    clean = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
     return json.loads(clean)
 
 
 def run_simulation(task: str = "easy"):
     """Run AI triage on a simulation task."""
     print(f"\n[START] MFDE AI Inference — task={task}")
-    print(f"        Server: {BASE_URL}")
-    print(f"        Model:  {MODEL_NAME}\n")
+    print(f"        Server: {ENV_BASE_URL}")
 
     # Reset
     try:
-        res = requests.post(f"{BASE_URL}/reset", json={"task": task, "mode": "simulation"})
+        res = requests.post(f"{ENV_BASE_URL}/reset", json={"task": task, "mode": "simulation"})
         res.raise_for_status()
         obs = res.json()
         print(f"[RESET] Subject: {obs['subject']} | From: {obs['sender']}\n")
@@ -114,7 +102,7 @@ def run_simulation(task: str = "easy"):
         print(f"           Reason  : {triage.get('reason', '')}")
 
         try:
-            res = requests.post(f"{BASE_URL}/step", json={
+            res = requests.post(f"{ENV_BASE_URL}/step", json={
                 "decision": triage["decision"],
                 "priority": triage["priority"]
             })
@@ -138,11 +126,11 @@ def run_simulation(task: str = "easy"):
 def run_gmail_mode(max_emails: int = 10):
     """Fetch real Gmail and triage via the server's /api/gmail endpoints."""
     print(f"\n[START] MFDE Gmail Triage — fetching {max_emails} emails")
-    print(f"        Server: {BASE_URL}\n")
+    print(f"        Server: {ENV_BASE_URL}\n")
 
     # 1. Fetch Gmail
     try:
-        res = requests.post(f"{BASE_URL}/api/gmail/fetch", json={"max_emails": max_emails})
+        res = requests.post(f"{ENV_BASE_URL}/api/gmail/fetch", json={"max_emails": max_emails})
         res.raise_for_status()
         data = res.json()
         emails = data["emails"]
@@ -153,7 +141,7 @@ def run_gmail_mode(max_emails: int = 10):
 
     # 2. Triage all emails
     try:
-        res = requests.post(f"{BASE_URL}/api/gmail/triage", json={"emails": emails})
+        res = requests.post(f"{ENV_BASE_URL}/api/gmail/triage", json={"emails": emails})
         res.raise_for_status()
         data = res.json()
         results = data["results"]
