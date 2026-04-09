@@ -15,10 +15,13 @@ reward:
   range: [0.01, 0.99]
 tasks:
   - name: easy
+    grader: deterministic
     description: "Clean signals, minimal noise. 5 emails."
   - name: medium
+    grader: deterministic
     description: "Some misleading emails, ~30% reward noise. 7 emails."
   - name: hard
+    grader: deterministic
     description: "Highly deceptive emails, strong misleading feedback (~50%). 10 emails."
   - name: gmail
     description: "Real Gmail inbox emails. No ground-truth labels. AI-graded."
