@@ -18,7 +18,7 @@ USER appuser
 # Env vars (override at runtime or in HF Space secrets)
 ENV ANTHROPIC_API_KEY=""
 ENV GMAIL_MCP_URL="https://gmail.mcp.claude.com/mcp"
-ENV API_BASE_URL="http://localhost:7860"
+ENV MFDE_SERVER_URL="http://127.0.0.1:7860"
 
 # Hugging Face requires port 7860
 EXPOSE 7860

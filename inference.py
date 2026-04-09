@@ -23,8 +23,8 @@ import argparse
 import requests
 import openai
 
-# OpenEnv Internal Server runs on port 8000
-ENV_BASE_URL = os.environ.get("ENV_BASE_URL", "http://127.0.0.1:8000")
+# Internal MFDE game server — separate from the LLM proxy
+MFDE_SERVER_URL = os.environ.get("MFDE_SERVER_URL", "http://127.0.0.1:7860")
 
 TRIAGE_SYSTEM = """You are an expert email security and triage AI.
 Classify each email into one action and one priority level.
@@ -69,11 +69,11 @@ def ai_triage(email_text: str, sender: str, subject: str) -> dict:
 def run_simulation(task: str = "easy"):
     """Run AI triage on a simulation task."""
     print(f"\n[START] MFDE AI Inference — task={task}")
-    print(f"        Server: {ENV_BASE_URL}")
+    print(f"        Server: {MFDE_SERVER_URL}")
 
     # Reset
     try:
-        res = requests.post(f"{ENV_BASE_URL}/reset", json={"task": task, "mode": "simulation"})
+        res = requests.post(f"{MFDE_SERVER_URL}/reset", json={"task": task, "mode": "simulation"})
         res.raise_for_status()
         obs = res.json()
         print(f"[RESET] Subject: {obs['subject']} | From: {obs['sender']}\n")
@@ -101,7 +101,7 @@ def run_simulation(task: str = "easy"):
         print(f"           Reason  : {triage.get('reason', '')}")
 
         try:
-            res = requests.post(f"{ENV_BASE_URL}/step", json={
+            res = requests.post(f"{MFDE_SERVER_URL}/step", json={
                 "decision": triage["decision"],
                 "priority": triage["priority"]
             })
@@ -125,11 +125,11 @@ def run_simulation(task: str = "easy"):
 def run_gmail_mode(max_emails: int = 10):
     """Fetch real Gmail and triage via the server's /api/gmail endpoints."""
     print(f"\n[START] MFDE Gmail Triage — fetching {max_emails} emails")
-    print(f"        Server: {ENV_BASE_URL}\n")
+    print(f"        Server: {MFDE_SERVER_URL}\n")
 
     # 1. Fetch Gmail
     try:
-        res = requests.post(f"{ENV_BASE_URL}/api/gmail/fetch", json={"max_emails": max_emails})
+        res = requests.post(f"{MFDE_SERVER_URL}/api/gmail/fetch", json={"max_emails": max_emails})
         res.raise_for_status()
         data = res.json()
         emails = data["emails"]
@@ -140,7 +140,7 @@ def run_gmail_mode(max_emails: int = 10):
 
     # 2. Triage all emails
     try:
-        res = requests.post(f"{ENV_BASE_URL}/api/gmail/triage", json={"emails": emails})
+        res = requests.post(f"{MFDE_SERVER_URL}/api/gmail/triage", json={"emails": emails})
         res.raise_for_status()
         data = res.json()
         results = data["results"]
