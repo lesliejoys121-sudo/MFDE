@@ -74,7 +74,7 @@ def ai_triage(email_text: str, sender: str, subject: str) -> dict:
             "anthropic-version": "2023-06-01",
         }
         payload = {
-            "model": "claude-3-5-sonnet-20241022",
+            "model": os.environ.get("MODEL_NAME", "claude-sonnet-4-20250514"),
             "max_tokens": 200,
             "system": TRIAGE_SYSTEM,
             "messages": [{"role": "user", "content": f"From: {sender}\nSubject: {subject}\nBody: {email_text}"}]
