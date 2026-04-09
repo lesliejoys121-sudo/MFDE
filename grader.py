@@ -46,14 +46,17 @@ _HARD_ANSWERS = [
 # ── Core scoring ──────────────────────────────────────────────────────────────
 
 def _score_step(action: dict, answer: dict) -> float:
-    """Score one triage decision. Returns 1.0 / 0.5 / 0.0."""
+    """
+    Score a single triage decision against ground truth.
+    Returns values strictly within open interval (0.0, 1.0).
+    """
     dec_ok = action.get("decision") == answer.get("correct_decision")
     pri_ok = action.get("priority") == answer.get("correct_priority")
     if dec_ok and pri_ok:
-        return 1.0
+        return 0.95   # Both correct — strictly below 1.0
     if dec_ok:
-        return 0.5
-    return 0.0
+        return 0.30   # Decision right, priority wrong
+    return 0.05       # Wrong decision — strictly above 0.0
 
 
 def _grade_against(actions: List[Dict], answers: List[Dict]) -> float:
@@ -88,19 +91,28 @@ def grade_step(predicted: dict, true: dict) -> float:
     return _score_step(predicted, true)
 
 
-def grade(history: List[Dict], task_name: str = "easy") -> float:
-    """Grade a completed episode history dict list. Returns [0.0, 1.0]."""
+def grade(history: List[Dict]) -> float:
+    """
+    Task Grader — returns float strictly within (0.0, 1.0).
+    Averages grade_step scores across the full episode trajectory.
+    """
     if not history:
-        return 0.0
-    total = sum(
-        _score_step(
-            s.get("action", {}),
-            {"correct_decision": s.get("correct_decision"),
-             "correct_priority": s.get("correct_priority")}
-        )
-        for s in history
-    )
-    return round(total / len(history), 4)
+        return 0.05   # No history — strictly above 0.0
+
+    total_score = 0.0
+    for step in history:
+        # Compatibility with MFDEEnv history format
+        action = step.get("action", {})
+        answer = {
+            "correct_decision": step.get("correct_decision"),
+            "correct_priority": step.get("correct_priority"),
+        }
+        total_score += _score_step(action, answer)
+
+    average_score = total_score / len(history)
+
+    # Clamp with safe margins well away from 0.0 and 1.0
+    return round(max(0.02, min(0.98, average_score)), 4)
 
 
 def grade_gmail(results: List[Dict]) -> dict:
