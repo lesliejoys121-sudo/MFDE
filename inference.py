@@ -1,30 +1,42 @@
 """
-inference.py
-------------
-AI-powered inference script for MFDE.
-Uses Claude to triage emails — works with both simulation tasks and real Gmail.
+inference.py — MFDE Email Triage Inference Script
+===================================================
+Follows OpenEnv mandatory spec exactly.
 
-Usage (simulation):
-    python inference.py --task easy
-
-Usage (Gmail):
-    python inference.py --gmail --max-emails 10
+STDOUT FORMAT:
+    [START] task=<task_name> env=<benchmark> model=<model_name>
+    [STEP]  step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
+    [END]   success=<true|false> steps=<n> score=<score> rewards=<r1,r2,...,rn>
 
 Env vars:
-    API_BASE_URL        — MFDE server URL (default: http://localhost:8000)
-    ANTHROPIC_API_KEY   — required for Gmail mode
-    MODEL_NAME          — Claude model (default: claude-sonnet-4-20250514)
+    API_BASE_URL   LLM proxy endpoint (injected by OpenEnv evaluator)
+    MODEL_NAME     Model identifier for inference
+    HF_TOKEN       Hugging Face / API key (also checks API_KEY as fallback)
+    MFDE_SERVER_URL  Internal MFDE game server (default: http://127.0.0.1:7860)
 """
 
 import os
 import json
 import time
 import argparse
-import requests
-import openai
+from typing import List, Optional
 
-# Internal MFDE game server — separate from the LLM proxy
-MFDE_SERVER_URL = os.environ.get("MFDE_SERVER_URL", "http://127.0.0.1:7860")
+import requests
+from openai import OpenAI
+
+# ── LLM Proxy (injected by OpenEnv evaluator) ─────────────────────────────────
+API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
+API_KEY      = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or "dummy_key"
+MODEL_NAME   = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
+
+# ── Internal MFDE game server (separate from LLM proxy) ───────────────────────
+MFDE_SERVER_URL = os.getenv("MFDE_SERVER_URL", "http://127.0.0.1:7860")
+
+BENCHMARK  = "mfde-email-triage"
+MAX_STEPS  = 15
+
+# ── OpenAI client wired to the injected proxy ─────────────────────────────────
+client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
 TRIAGE_SYSTEM = """You are an expert email security and triage AI.
 Classify each email into one action and one priority level.
@@ -43,145 +55,113 @@ Respond ONLY with JSON, no markdown, no explanation:
 {"decision":"reply|ignore|escalate","priority":"low|medium|high","reason":"one sentence"}"""
 
 
+# ── Mandatory stdout log helpers ───────────────────────────────────────────────
+def log_start(task: str, env: str, model: str) -> None:
+    print(f"[START] task={task} env={env} model={model}", flush=True)
+
+
+def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
+    error_val = error if error else "null"
+    done_val  = str(done).lower()
+    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}", flush=True)
+
+
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
+
+
+# ── LLM triage via proxy ───────────────────────────────────────────────────────
 def ai_triage(email_text: str, sender: str, subject: str) -> dict:
-    """Strictly use OpenEnv LLM proxy as required by hackathon rules."""
-    
-    # Initialize OpenAI client with exactly the injected proxy credentials
-    client = openai.OpenAI(
-        base_url=os.environ["API_BASE_URL"],
-        api_key=os.environ["API_KEY"]
-    )
-    
+    """Call the LLM via the OpenEnv injected proxy."""
     response = client.chat.completions.create(
-        model=os.environ.get("MODEL_NAME", "gpt-4o"),
+        model=MODEL_NAME,
         messages=[
             {"role": "system", "content": TRIAGE_SYSTEM},
-            {"role": "user", "content": f"From: {sender}\nSubject: {subject}\nBody: {email_text}"}
+            {"role": "user",   "content": f"From: {sender}\nSubject: {subject}\nBody: {email_text}"}
         ],
         max_tokens=200,
-        temperature=0.0
+        temperature=0.0,
     )
-    
-    clean = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
+    raw   = response.choices[0].message.content or ""
+    clean = raw.replace("```json", "").replace("```", "").strip()
     return json.loads(clean)
 
 
-def run_simulation(task: str = "easy"):
-    """Run AI triage on a simulation task."""
-    print(f"\n[START] MFDE AI Inference — task={task}")
-    print(f"        Server: {MFDE_SERVER_URL}")
+# ── Simulation run ─────────────────────────────────────────────────────────────
+def run_simulation(task: str = "easy") -> None:
+    rewards: List[float] = []
+    steps_taken   = 0
+    score         = 0.0
+    success       = False
 
-    # Reset
+    log_start(task=task, env=BENCHMARK, model=MODEL_NAME)
+
     try:
-        res = requests.post(f"{MFDE_SERVER_URL}/reset", json={"task": task, "mode": "simulation"})
-        res.raise_for_status()
-        obs = res.json()
-        print(f"[RESET] Subject: {obs['subject']} | From: {obs['sender']}\n")
-    except Exception as e:
-        print(f"[ERROR] Reset failed: {e}")
-        return
-
-    done = False
-    step_count = 0
-    total_reward = 0.0
-
-    while not done and step_count < 15:
-        step_count += 1
-
-        # AI triage
+        # Reset environment
         try:
-            triage = ai_triage(obs["email_text"], obs["sender"], obs["subject"])
-        except Exception as e:
-            print(f"[STEP {step_count}] AI triage error: {e} — falling back to ignore/low")
-            triage = {"decision": "ignore", "priority": "low", "reason": "Error fallback."}
-
-        print(f"[STEP {step_count}] Subject : {obs['subject']}")
-        print(f"           From    : {obs['sender']}")
-        print(f"           AI      : {triage['decision'].upper()} / {triage['priority'].upper()}")
-        print(f"           Reason  : {triage.get('reason', '')}")
-
-        try:
-            res = requests.post(f"{MFDE_SERVER_URL}/step", json={
-                "decision": triage["decision"],
-                "priority": triage["priority"]
-            })
+            res = requests.post(f"{MFDE_SERVER_URL}/reset",
+                                json={"task": task, "mode": "simulation"},
+                                timeout=30)
             res.raise_for_status()
-            data = res.json()
-            obs = data["observation"]
-            reward = data["reward"]
-            done = data["done"]
-            info = data.get("info", {})
-            total_reward += reward
-            match = "✓" if reward >= 0.9 else ("~" if reward >= 0.2 else "✗")
-            print(f"           Reward  : {reward:.2f} {match}  |  Correct: {info.get('correct_decision','?')}/{info.get('correct_priority','?')}")
-            print(f"           Streak  : {info.get('streak', 0)}  |  Cumulative: {total_reward:.2f}\n")
+            obs = res.json()
         except Exception as e:
-            print(f"[ERROR] Step failed: {e}")
-            break
+            log_end(success=False, steps=0, score=0.0, rewards=[])
+            return
 
-    print(f"[END] Steps: {step_count} | Total reward: {total_reward:.2f} | Score: {total_reward/max(step_count,1):.2f}/step\n")
+        done = False
 
+        for step in range(1, MAX_STEPS + 1):
+            if done:
+                break
 
-def run_gmail_mode(max_emails: int = 10):
-    """Fetch real Gmail and triage via the server's /api/gmail endpoints."""
-    print(f"\n[START] MFDE Gmail Triage — fetching {max_emails} emails")
-    print(f"        Server: {MFDE_SERVER_URL}\n")
+            steps_taken = step
+            error_msg   = None
 
-    # 1. Fetch Gmail
-    try:
-        res = requests.post(f"{MFDE_SERVER_URL}/api/gmail/fetch", json={"max_emails": max_emails})
-        res.raise_for_status()
-        data = res.json()
-        emails = data["emails"]
-        print(f"[GMAIL] Loaded {data['count']} emails.\n")
-    except Exception as e:
-        print(f"[ERROR] Gmail fetch failed: {e}")
-        return
+            # LLM decides action
+            try:
+                triage = ai_triage(obs["email_text"], obs["sender"], obs["subject"])
+                action_str = f"{triage['decision']}/{triage['priority']}"
+            except Exception as e:
+                error_msg  = str(e)
+                triage     = {"decision": "ignore", "priority": "low", "reason": "Error fallback."}
+                action_str = "ignore/low"
 
-    # 2. Triage all emails
-    try:
-        res = requests.post(f"{MFDE_SERVER_URL}/api/gmail/triage", json={"emails": emails})
-        res.raise_for_status()
-        data = res.json()
-        results = data["results"]
-        summary = data["summary"]
-    except Exception as e:
-        print(f"[ERROR] Gmail triage failed: {e}")
-        return
+            # Submit action to environment
+            reward = 0.0
+            try:
+                res = requests.post(f"{MFDE_SERVER_URL}/step",
+                                    json={"decision": triage["decision"], "priority": triage["priority"]},
+                                    timeout=30)
+                res.raise_for_status()
+                data   = res.json()
+                obs    = data["observation"]
+                reward = float(data["reward"])
+                done   = bool(data["done"])
+            except Exception as e:
+                error_msg = str(e)
+                done      = True
 
-    # 3. Print results
-    print(f"{'#':<4} {'From':<28} {'Subject':<32} {'Decision':<10} {'Priority':<8} Reason")
-    print("-" * 105)
-    for r in results:
-        print(
-            f"{r['email_index']:<4} "
-            f"{r['from_address'][:27]:<28} "
-            f"{r['subject'][:31]:<32} "
-            f"{r['decision']:<10} "
-            f"{r['priority']:<8} "
-            f"{r.get('reason','')[:35]}"
-        )
+            rewards.append(reward)
+            log_step(step=step, action=action_str, reward=reward, done=done, error=error_msg)
 
-    print(f"\n[SUMMARY]")
-    print(f"  Total   : {summary['total']}")
-    print(f"  Escalate: {summary['by_decision'].get('escalate', 0)}")
-    print(f"  Reply   : {summary['by_decision'].get('reply', 0)}")
-    print(f"  Ignore  : {summary['by_decision'].get('ignore', 0)}")
-    print(f"\n[END] Gmail triage complete.\n")
+        score   = sum(rewards) / max(steps_taken, 1)
+        score   = min(max(score, 0.0), 0.99)
+        success = score >= 0.1
+
+    finally:
+        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
 
+# ── Entry point ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MFDE AI Inference Script")
-    parser.add_argument("--task", type=str, default="easy", choices=["easy", "medium", "hard"],
+    parser.add_argument("--task", type=str, default="easy",
+                        choices=["easy", "medium", "hard"],
                         help="Simulation task difficulty")
-    parser.add_argument("--gmail", action="store_true", help="Triage real Gmail emails instead of simulation")
-    parser.add_argument("--max-emails", type=int, default=10, help="Number of Gmail emails to fetch")
-    parser.add_argument("--wait", type=int, default=2, help="Seconds to wait for server startup")
+    parser.add_argument("--wait", type=int, default=2,
+                        help="Seconds to wait for server startup")
     args = parser.parse_args()
 
     time.sleep(args.wait)
-
-    if args.gmail:
-        run_gmail_mode(max_emails=args.max_emails)
-    else:
-        run_simulation(task=args.task)
+    run_simulation(task=args.task)
