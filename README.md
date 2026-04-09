@@ -82,7 +82,7 @@ Medium and Hard tasks inject reward noise based on the task difficulty, simulati
 ### Deterministic Grader
 Compliance with the hackathon rubric is guaranteed via `grader.py`:
 - **Function**: `grade(history) -> float [0.0 - 1.0]`
-- Calculated by averaging total weighted rewards across the trajectory and clamping to 4 decimal places for precision.
+- Calculated by averaging total weighted rewards across the trajectory and clamping to 2 decimal places for precision.
 
 ---
 
@@ -117,7 +117,7 @@ python inference.py
 | POST | `/reset` | Reset environment, pick task (easy/medium/hard) |
 | POST | `/step` | Submit triage action, get reward |
 | GET | `/state` | Current episode state + history |
-| GET | `/api/performance` | Score, streak, rank (4-decimal precision) |
+| GET | `/api/performance` | Score, streak, rank (2-decimal precision) |
 | POST | `/api/gmail/fetch` | Fetch real Gmail emails via MCP |
 | POST | `/api/gmail/triage` | Triage emails with Claude AI |
 
@@ -137,9 +137,9 @@ python inference.py
 
 | Task   | Steps | Baseline Score | Success |
 |--------|-------|---------------|---------|
-| Easy   | 5     | 0.596         | ✅ Yes  |
-| Medium | 7     | 0.843         | ✅ Yes  |
-| Hard   | 10    | 0.788         | ✅ Yes  |
+| Easy   | 5     | 0.60          | ✅ Yes  |
+| Medium | 7     | 0.84          | ✅ Yes  |
+| Hard   | 10    | 0.79          | ✅ Yes  |
 
 *Reproduced using deterministic heuristic fallback.*
 

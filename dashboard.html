@@ -99,7 +99,7 @@
         <div class="flex items-center gap-4">
             <div class="glass-panel px-6 py-2 flex flex-col items-center justify-center border-white/10">
                 <span class="text-[8px] font-black uppercase text-gray-500 tracking-widest">Total XP</span>
-                <span class="text-xl font-black text-white" x-text="perf.total_score.toFixed(4)">0</span>
+                <span class="text-xl font-black text-white" x-text="perf.total_score.toFixed(2)">0</span>
             </div>
             
             <!-- Task Switcher (Replaces the basic select, keeping it integrated aesthetic) -->
@@ -271,7 +271,7 @@
                                     <span class="relative text-[9px] font-black text-gray-400 tracking-[0.2em] uppercase mb-1">Yield Pos</span>
                                     <span class="relative text-4xl font-black text-white transition-all duration-300 transform scale-100" 
                                           :class="recentAnim ? 'scale-125 text-blue-400' : ''"
-                                          x-text="recentScore !== null ? recentScore.toFixed(4) : '--'"></span>
+                                          x-text="recentScore !== null ? recentScore.toFixed(2) : '--'"></span>
                                 </div>
                             </div>
                         </div>

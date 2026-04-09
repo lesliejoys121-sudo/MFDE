@@ -102,7 +102,7 @@ def step(action: Action):
         obs, reward, done, info = env.step(action)
         return {
             "observation": obs,
-            "reward": round(reward.value, 4),
+            "reward": round(reward.value, 2),
             "done": done,
             "info": info
         }
@@ -123,7 +123,7 @@ def get_performance():
     elif score < 500.0: rank, next_goal = "Master Triage Expert", 500.0
     else: rank, next_goal = "Grandmaster Phish-Hunter", 5000.0
     return {
-        "total_score": round(score, 4),
+        "total_score": round(score, 2),
         "current_streak": streak,
         "rank": rank,
         "progress_percent": min(100, (score / next_goal) * 100)

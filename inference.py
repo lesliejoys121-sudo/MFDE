@@ -41,7 +41,7 @@ def log_step(step: int, action: Action, reward: float, done: bool, error: Option
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.4f} rewards={rewards_str}", flush=True)
+    print(f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}", flush=True)
 
 # ── deterministic fallback heuristic (no API needed) ─────────────────────────
 KEYWORD_MAP = {
@@ -141,7 +141,7 @@ def run_task(env: MFDEEnv, task_name: str, client: Optional[OpenAI]) -> None:
 
     final_score = grade(env.history)
     # Clamp strictly within (0, 1) — validator rejects exact 0.0 or 1.0
-    final_score = round(max(0.02, min(0.98, final_score)), 3)
+    final_score = round(max(0.02, min(0.98, final_score)), 2)
     success = final_score >= SUCCESS_SCORE_THRESHOLD
     log_end(success=success, steps=step_idx, score=final_score, rewards=rewards)
 

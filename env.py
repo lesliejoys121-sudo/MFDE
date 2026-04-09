@@ -142,7 +142,7 @@ class MFDEEnv:
         self.session_score += true_reward
 
         average = self.cumulative_xp / (self.current_step + 1)
-        self.total_score = round(max(0.02, min(0.98, average)), 4)
+        self.total_score = round(max(0.02, min(0.98, average)), 2)
 
         self.history.append({
             "step": self.current_step,
@@ -155,7 +155,7 @@ class MFDEEnv:
             "reason": email.get("reason", "N/A")
         })
 
-        feedback_reward = round(true_reward, 4)
+        feedback_reward = round(true_reward, 2)
         noise_prob = task_data.get("reward_noise_prob", 0.0) if not self._using_gmail else 0.0
         if random.random() < noise_prob:
             noise = random.uniform(-0.1, 0.1)
