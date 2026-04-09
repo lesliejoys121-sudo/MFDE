@@ -1,3 +1,13 @@
+---
+title: MFDE TriageCenter
+emoji: 📧
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+app_port: 7860
+---
+
 # 🧠 MFDE: Misleading Feedback Decision Environment — v2.0
 
 [![OpenEnv](https://img.shields.io/badge/Spec-OpenEnv--2.0-blue)](https://github.com/openenv)
