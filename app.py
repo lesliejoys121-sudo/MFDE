@@ -95,13 +95,19 @@ def reset(req: Optional[ResetRequest] = Body(default=None)):
 
 @app.post("/step")
 def step(action: Action):
-    obs, reward, done, info = env.step(action)
-    return {
-        "observation": obs,
-        "reward": round(reward.value, 2),
-        "done": done,
-        "info": info
-    }
+    try:
+        # Auto-reset if the episode finished so clicking never hard-fails
+        if env.is_done:
+            env.reset(env.task_name if not env._using_gmail else "gmail", env.mode)
+        obs, reward, done, info = env.step(action)
+        return {
+            "observation": obs,
+            "reward": round(reward.value, 2),
+            "done": done,
+            "info": info
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Step error: {str(e)}")
 
 @app.get("/state", response_model=State)
 def state():
