@@ -126,16 +126,16 @@ class MFDEEnv:
             decision_match = (action.decision == email["correct_decision"])
             priority_match = (action.priority == email["correct_priority"])
 
-        base_reward = (0.6 if decision_match else 0.0) + (0.4 if priority_match else 0.0)
+
 
         if decision_match and priority_match:
-            true_reward = 0.95
+            true_reward = 0.98
             self.current_streak += 1
         elif decision_match:
-            true_reward = 0.30
+            true_reward = 0.55
             self.current_streak = 0
         else:
-            true_reward = 0.05
+            true_reward = 0.02
             self.current_streak = 0
 
         self.cumulative_xp += true_reward
@@ -155,7 +155,7 @@ class MFDEEnv:
             "reason": email.get("reason", "N/A")
         })
 
-        feedback_reward = round(true_reward, 2)
+        feedback_reward = round(true_reward, 4)
         noise_prob = task_data.get("reward_noise_prob", 0.0) if not self._using_gmail else 0.0
         if random.random() < noise_prob:
             noise = random.uniform(-0.1, 0.1)

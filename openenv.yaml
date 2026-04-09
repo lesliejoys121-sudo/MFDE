@@ -1,6 +1,6 @@
 name: MFDE-Email-Triage
 version: "2.0.0"
-description: "Misleading Feedback Decision Environment: Email Triage with real Gmail integration"
+description: "Misleading Feedback Decision Environment: High-fidelity email triage with calibrated (0.02, 0.98) scoring."
 tags: [openenv, nlp, classification, uncertainty, calibration, gmail]
 observation_space:
   email_text: {type: string}

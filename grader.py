@@ -53,10 +53,10 @@ def _score_step(action: dict, answer: dict) -> float:
     dec_ok = action.get("decision") == answer.get("correct_decision")
     pri_ok = action.get("priority") == answer.get("correct_priority")
     if dec_ok and pri_ok:
-        return 0.95   # Both correct — strictly below 1.0
+        return 0.98   # Both correct — strictly below 1.0
     if dec_ok:
-        return 0.30   # Decision right, priority wrong
-    return 0.05       # Wrong decision — strictly above 0.0
+        return 0.55   # Decision right, priority wrong
+    return 0.02       # Wrong decision — strictly above 0.0
 
 
 def _grade_against(actions: List[Dict], answers: List[Dict]) -> float:
@@ -97,7 +97,7 @@ def grade(history: List[Dict]) -> float:
     Averages grade_step scores across the full episode trajectory.
     """
     if not history:
-        return 0.05   # No history — strictly above 0.0
+        return 0.02   # No history — strictly above 0.0
 
     total_score = 0.0
     for step in history:
