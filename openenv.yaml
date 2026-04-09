@@ -12,18 +12,18 @@ action_space:
   priority: {type: string, options: [low, medium, high]}
 reward:
   type: float
-  range: [0.0, 0.99]
+  range: [0.0, 1.0]
 tasks:
   - name: easy
-    grader: grade_easy
+    grader: deterministic
     steps: 5
     description: "Clear signals, no noise. 5 straightforward triage emails."
   - name: medium
-    grader: grade_medium
+    grader: deterministic
     steps: 7
     description: "Some misleading emails (CEO fraud, fake urgency), ~30% reward noise."
   - name: hard
-    grader: grade_hard
+    grader: deterministic
     steps: 10
     description: "Highly deceptive emails, ambiguous signals, ~50% reward noise."
 endpoints:

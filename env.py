@@ -129,20 +129,20 @@ class MFDEEnv:
         base_reward = (0.6 if decision_match else 0.0) + (0.4 if priority_match else 0.0)
 
         if decision_match and priority_match:
-            true_reward = 0.98
+            true_reward = 1.0
             self.current_streak += 1
         elif decision_match:
-            true_reward = 0.55
+            true_reward = 0.5
             self.current_streak = 0
         else:
-            true_reward = 0.02
+            true_reward = 0.0
             self.current_streak = 0
 
         self.cumulative_xp += true_reward
         self.session_score += true_reward
 
         average = self.cumulative_xp / (self.current_step + 1)
-        self.total_score = round(max(0.00, min(0.99, average)), 4)
+        self.total_score = round(max(0.0, min(1.0, average)), 4)
 
         self.history.append({
             "step": self.current_step,
@@ -159,7 +159,7 @@ class MFDEEnv:
         noise_prob = task_data.get("reward_noise_prob", 0.0) if not self._using_gmail else 0.0
         if random.random() < noise_prob:
             noise = random.uniform(-0.1, 0.1)
-            feedback_reward = round(max(0.00, min(0.99, true_reward + noise)), 2)
+            feedback_reward = round(max(0.0, min(1.0, true_reward + noise)), 2)
 
         self.current_step += 1
 

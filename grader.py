@@ -1,20 +1,15 @@
 """
 grader.py — MFDE Email Triage Graders
 ======================================
-Each task has a dedicated grader function: grade_easy, grade_medium, grade_hard.
-The evaluator enumerates these by name and calls them with a list of agent actions.
-
 Grader contract (OpenEnv):
-  - Input:  list of dicts, each with keys: decision, priority
-  - Output: float in [0.00, 0.99]
-  - Must return VARYING scores (not always the same value)
-  - Must be deterministic and reproducible
+  - grade_easy / grade_medium / grade_hard accept a list of action dicts
+  - Each returns a float in [0.0, 1.0]
+  - Scores vary with agent quality (not constant)
 """
 
 from typing import List, Dict
 
-
-# ── Ground-truth answers per task ─────────────────────────────────────────────
+# ── Ground-truth answer keys per task ────────────────────────────────────────
 
 _EASY_ANSWERS = [
     {"correct_decision": "reply",    "correct_priority": "medium"},
@@ -48,98 +43,83 @@ _HARD_ANSWERS = [
 ]
 
 
-# ── Core step grader ──────────────────────────────────────────────────────────
+# ── Core scoring ──────────────────────────────────────────────────────────────
 
 def _score_step(action: dict, answer: dict) -> float:
-    """
-    Score a single triage decision against ground truth.
-    Strictly stays within [0.02, 0.98] to satisfy validator.
-    """
-    decision_ok = action.get("decision") == answer.get("correct_decision")
-    priority_ok = action.get("priority") == answer.get("correct_priority")
-    
-    if decision_ok and priority_ok:
-        return 0.98
-    if decision_ok:
-        return 0.55
-    return 0.02
+    """Score one triage decision. Returns 1.0 / 0.5 / 0.0."""
+    dec_ok = action.get("decision") == answer.get("correct_decision")
+    pri_ok = action.get("priority") == answer.get("correct_priority")
+    if dec_ok and pri_ok:
+        return 1.0
+    if dec_ok:
+        return 0.5
+    return 0.0
 
 
 def _grade_against(actions: List[Dict], answers: List[Dict]) -> float:
-    """Grade actions vs ground-truth answers. Returns float in [0.02, 0.98]."""
-    if not actions:
-        return 0.02
-    total = 0.0
-    count = min(len(actions), len(answers))
-    for i in range(count):
-        total += _score_step(actions[i], answers[i])
-    # Average and ensure we don't hit 0.0 or 1.0 even with rounding
+    """Average score over all answer slots. Penalises missing steps."""
+    if not actions or not answers:
+        return 0.0
+    total = sum(_score_step(actions[i], answers[i]) for i in range(min(len(actions), len(answers))))
     return round(total / len(answers), 4)
 
 
-# ── Public per-task graders (called by OpenEnv evaluator) ────────────────────
+# ── Public per-task graders ───────────────────────────────────────────────────
 
 def grade_easy(actions: List[Dict]) -> float:
-    """Grader for the 'easy' task (5 emails). Returns [0.02, 0.98]."""
+    """Grader for 'easy' task — 5 emails, clear signals. Returns [0.0, 1.0]."""
     return _grade_against(actions, _EASY_ANSWERS)
 
 
 def grade_medium(actions: List[Dict]) -> float:
-    """Grader for the 'medium' task (7 emails). Returns [0.02, 0.98]."""
+    """Grader for 'medium' task — 7 emails, some deception. Returns [0.0, 1.0]."""
     return _grade_against(actions, _MEDIUM_ANSWERS)
 
 
 def grade_hard(actions: List[Dict]) -> float:
-    """Grader for the 'hard' task (10 emails). Returns [0.02, 0.98]."""
+    """Grader for 'hard' task — 10 emails, highly deceptive. Returns [0.0, 1.0]."""
     return _grade_against(actions, _HARD_ANSWERS)
 
 
-# ── Internal helpers (used by env.py and app.py) ─────────────────────────────
+# ── Internal helpers used by env.py / app.py ─────────────────────────────────
 
 def grade_step(predicted: dict, true: dict) -> float:
-    """Legacy step grader used internally by MFDEEnv."""
+    """Single-step grader for use inside MFDEEnv.step()."""
     return _score_step(predicted, true)
 
 
 def grade(history: List[Dict], task_name: str = "easy") -> float:
-    """Grade a completed episode history (used by env.py). Returns [0.02, 0.98]."""
+    """Grade a completed episode history dict list. Returns [0.0, 1.0]."""
     if not history:
-        return 0.02
-    total = 0.0
-    for step in history:
-        action = step.get("action", {})
-        answer = {
-            "correct_decision": step.get("correct_decision"),
-            "correct_priority": step.get("correct_priority"),
-        }
-        total += _score_step(action, answer)
+        return 0.0
+    total = sum(
+        _score_step(
+            s.get("action", {}),
+            {"correct_decision": s.get("correct_decision"),
+             "correct_priority": s.get("correct_priority")}
+        )
+        for s in history
+    )
     return round(total / len(history), 4)
 
 
 def grade_gmail(results: List[Dict]) -> dict:
-    """Summarise Gmail triage results without ground-truth."""
+    """Summarise Gmail triage results (no ground truth). Returns summary dict."""
     if not results:
-        return {"score": 0.02, "total": 0, "by_decision": {}, "by_priority": {}}
-    
+        return {"score": 0.0, "total": 0, "by_decision": {}, "by_priority": {}}
     by_decision = {"escalate": 0, "reply": 0, "ignore": 0}
     by_priority  = {"high": 0, "medium": 0, "low": 0}
-    
     for r in results:
-        dec = r.get("decision", "ignore")
-        pri = r.get("priority", "low")
-        by_decision[dec] = by_decision.get(dec, 0) + 1
-        by_priority[pri]  = by_priority.get(pri, 0) + 1
-        
+        by_decision[r.get("decision", "ignore")] = by_decision.get(r.get("decision", "ignore"), 0) + 1
+        by_priority[r.get("priority", "low")]    = by_priority.get(r.get("priority", "low"), 0) + 1
     total = len(results)
-    ignore_rate = by_decision["ignore"] / total if total > 0 else 1.0
-    # Heuristic score between 0.02 and 0.98
-    score = round(max(0.02, min(0.98, 1.0 - ignore_rate * 0.5)), 4)
-    
+    ignore_rate = by_decision["ignore"] / total
     return {
-        "score": score,
-        "total": total,
-        "by_decision": by_decision,
-        "by_priority": by_priority,
-        "reply_rate":    round(by_decision["reply"] / total, 2) if total > 0 else 0,
+        "score":        round(max(0.0, min(1.0, 1.0 - ignore_rate * 0.5)), 4),
+        "total":        total,
+        "by_decision":  by_decision,
+        "by_priority":  by_priority,
+        "escalate_rate": round(by_decision["escalate"] / total, 2),
+        "reply_rate":    round(by_decision["reply"] / total, 2),
         "ignore_rate":   round(ignore_rate, 2),
     }
