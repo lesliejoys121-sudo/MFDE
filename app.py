@@ -102,7 +102,7 @@ def get_performance():
     else: rank, next_goal = "Grandmaster Phish-Hunter", 5000.0 # Legendary
     
     return {
-        "total_score": round(score, 1),
+        "total_score": round(score, 2),
         "current_streak": streak,
         "rank": rank,
         "progress_percent": min(100, (score / next_goal) * 100)
@@ -207,7 +207,7 @@ def root():
             <div class="flex items-center gap-5 glass px-6 py-3 rounded-2xl border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
                 <div class="text-center min-w-[70px]">
                     <p class="text-[9px] font-black text-gray-500 uppercase tracking-[0.2em] opacity-80 mb-0.5">Total XP</p>
-                    <p class="text-2xl font-black text-white leading-tight drop-shadow-md" x-text="perf.total_score"></p>
+                    <p class="text-2xl font-black text-white leading-tight drop-shadow-md" x-text="perf.total_score.toFixed(2)"></p>
                 </div>
                 <div x-show="perf.current_streak > 1" class="text-center border-l border-white/5 pl-5 min-w-[70px] animate-bounce">
                     <p class="text-[9px] font-black text-orange-500 uppercase tracking-[0.2em] leading-none mb-1">Streak</p>
@@ -349,7 +349,7 @@ def root():
                             </div>
                             <div class="glass px-8 py-4 rounded-3xl border border-white/10 text-center shadow-xl">
                                 <p class="text-[10px] font-black tracking-widest text-gray-400 uppercase mb-1">Total Verified XP</p>
-                                <p class="text-3xl font-black text-blue-400 drop-shadow-md" x-text="perf.total_score"></p>
+                                <p class="text-3xl font-black text-blue-400 drop-shadow-md" x-text="perf.total_score.toFixed(2)"></p>
                             </div>
                         </div>
 
@@ -396,7 +396,7 @@ def root():
                                                 <p class="text-[10px] text-blue-300 font-black uppercase tracking-widest" x-text="perf.rank"></p>
                                             </div>
                                         </div>
-                                        <p class="font-black text-white relative z-10" x-text="perf.total_score"></p>
+                                        <p class="font-black text-white relative z-10" x-text="perf.total_score.toFixed(2)"></p>
                                     </div>
                                 </div>
                             </div>
