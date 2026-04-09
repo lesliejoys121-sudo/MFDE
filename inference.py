@@ -23,7 +23,8 @@ import argparse
 import requests
 import openai
 
-ENV_BASE_URL = os.environ.get("ENV_BASE_URL", "http://localhost:8000")
+# OpenEnv Internal Server runs on port 8000
+ENV_BASE_URL = os.environ.get("ENV_BASE_URL", "http://127.0.0.1:8000")
 
 TRIAGE_SYSTEM = """You are an expert email security and triage AI.
 Classify each email into one action and one priority level.
@@ -43,14 +44,12 @@ Respond ONLY with JSON, no markdown, no explanation:
 
 
 def ai_triage(email_text: str, sender: str, subject: str) -> dict:
-    """Strict evaluation proxy route explicitly following OpenEnv guidelines."""
-    # Ensure they exist or gracefully default to standard openai variables locally
-    api_base = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
-    api_key = os.environ.get("API_KEY", "dummy_key")
+    """Strictly use OpenEnv LLM proxy as required by hackathon rules."""
     
+    # Initialize OpenAI client with exactly the injected proxy credentials
     client = openai.OpenAI(
-        base_url=api_base,
-        api_key=api_key
+        base_url=os.environ["API_BASE_URL"],
+        api_key=os.environ["API_KEY"]
     )
     
     response = client.chat.completions.create(
