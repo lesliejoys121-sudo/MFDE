@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MFDE | Gmail Command Center v2.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --glass: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+            --accent: #3b82f6;
+        }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+        .glass {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+        }
+        .accent-gradient {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        }
+        .glow {
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.2);
+        }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Animated Background Elements */
+        .blob {
+            position: fixed;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+            border-radius: 50%;
+            z-index: -1;
+            filter: blur(80px);
+            animation: move 20s infinite alternate;
+        }
+        @keyframes move {
+            from { transform: translate(-10%, -10%); }
+            to { transform: translate(20%, 30%); }
+        }
+
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body x-data="triageApp()" x-init="checkAuth(); initChart();">
+    <div class="blob" style="top: -100px; left: -100px;"></div>
+    <div class="blob" style="bottom: -100px; right: -100px; background: radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 70%);"></div>
+
+    <!-- LOGIN SCREEN -->
+    <div x-show="!isLoggedIn" x-cloak class="fixed inset-0 z-[200] flex items-center justify-center bg-[#0b0f19]">
+        <div class="glass p-12 rounded-[40px] w-full max-w-md text-center border-t-4 border-blue-500 shadow-2xl animate-fadeIn">
+            <div class="w-24 h-24 accent-gradient rounded-3xl mx-auto mb-8 flex items-center justify-center text-4xl shadow-lg glow">📧</div>
+            <h1 class="text-4xl font-extrabold mb-2 tracking-tight">MFDE <span class="text-blue-500">v2.0</span></h1>
+            <p class="text-gray-400 mb-10 font-medium">Email Triage Command Center</p>
+            
+            <div class="space-y-4">
+                <input type="text" x-model="loginUser" placeholder="Analyst Callsign" class="w-full bg-white/5 border border-white/10 p-5 rounded-2xl focus:outline-none focus:border-blue-500 transition-all font-medium">
+                <input type="password" x-model="loginPass" placeholder="Security Key" class="w-full bg-white/5 border border-white/10 p-5 rounded-2xl focus:outline-none focus:border-blue-500 transition-all font-medium">
+                <button @click="login()" class="w-full accent-gradient p-5 rounded-2xl font-bold text-white shadow-xl hover:scale-[1.02] active:scale-95 transition-all">ESTABLISH CONNECTION</button>
+            </div>
+            <p class="text-gray-600 text-[10px] mt-8 tracking-widest uppercase font-bold">Standard credentials: admin / mfde2024</p>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD -->
+    <div x-show="isLoggedIn" x-cloak class="flex h-screen p-6 gap-6 transition-opacity duration-1000">
+        
+        <!-- SIDEBAR -->
+        <aside class="w-80 flex flex-col gap-6">
+            <!-- PROFILE -->
+            <div class="glass p-8 rounded-[35px]">
+                <div class="flex items-center gap-4 mb-8">
+                    <div class="w-14 h-14 rounded-2xl accent-gradient flex items-center justify-center font-bold text-xl shadow-lg border-2 border-white/20">A1</div>
+                    <div>
+                        <p class="text-[10px] font-black tracking-widest text-blue-400 uppercase">Analyst Alpha</p>
+                        <h2 class="text-lg font-bold" x-text="perf.rank">Analyst</h2>
+                    </div>
+                </div>
+                
+                <div class="space-y-6">
+                    <div>
+                        <div class="flex justify-between text-[11px] mb-2 font-black uppercase tracking-tighter">
+                            <span class="text-gray-400">Mission Progress</span>
+                            <span class="text-blue-400" x-text="perf.total_score.toFixed(2) + ' XP'">0 XP</span>
+                        </div>
+                        <div class="h-3 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
+                            <div class="h-full accent-gradient transition-all" :style="'width: ' + perf.progress_percent + '%'"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-4">
+                        <div class="flex-1 bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+                            <p class="text-white font-black text-xl" x-text="perf.current_streak">0</p>
+                            <p class="text-[9px] uppercase font-black text-gray-500 tracking-wider">Streak</p>
+                        </div>
+                        <div class="flex-1 bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+                            <p class="text-white font-black text-xl">1.2.7</p>
+                            <p class="text-[9px] uppercase font-black text-gray-500 tracking-wider">Ver</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NAVIGATION -->
+            <nav class="glass flex-1 rounded-[35px] p-4 flex flex-col gap-2">
+                <button @click="currentTab = 'simulation'" :class="currentTab === 'simulation' ? 'accent-gradient text-white glow' : 'hover:bg-white/5 text-gray-400'" class="w-full p-5 rounded-2xl font-bold flex items-center gap-4 transition-all">
+                    <span>📊</span> Simulation
+                </button>
+                <button @click="currentTab = 'gmail'" :class="currentTab === 'gmail' ? 'accent-gradient text-white glow' : 'hover:bg-white/5 text-gray-400'" class="w-full p-5 rounded-2xl font-bold flex items-center gap-4 transition-all">
+                    <span>📫</span> Gmail v2.0
+                </button>
+                <button @click="openAnalytics()" :class="currentTab === 'analytics' ? 'accent-gradient text-white glow' : 'hover:bg-white/5 text-gray-400'" class="w-full p-5 rounded-2xl font-bold flex items-center gap-4 transition-all">
+                    <span>📈</span> Performance
+                </button>
+                <button @click="currentTab = 'scanner'" :class="currentTab === 'scanner' ? 'accent-gradient text-white glow' : 'hover:bg-white/5 text-gray-400'" class="w-full p-5 rounded-2xl font-bold flex items-center gap-4 transition-all">
+                    <span>🛡️</span> Scanner
+                </button>
+                
+                <div class="mt-auto pt-6 px-4">
+                    <button @click="logout()" class="w-full p-4 border border-red-500/20 text-red-400 rounded-2xl font-black text-[10px] tracking-widest uppercase hover:bg-red-500/10 transition-all">Deauthorize</button>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="flex-1 flex flex-col gap-6 overflow-hidden">
+            
+            <!-- HEADER / STATS -->
+            <header class="glass h-24 rounded-[30px] flex items-center px-10 justify-between">
+                <div class="flex items-center gap-6">
+                    <div class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500 border-r border-white/10 pr-6">Mission Feed</div>
+                    <div class="flex items-center gap-3">
+                        <template x-if="currentTab === 'simulation'">
+                            <select x-model="selectedTask" @change="loadInbox()" class="bg-transparent text-sm font-bold focus:outline-none cursor-pointer hover:text-blue-400 transition-colors uppercase tracking-widest">
+                                <option value="easy">Easy (Simulation)</option>
+                                <option value="medium">Medium (Adversarial)</option>
+                                <option value="hard">Hard (Security Chaos)</option>
+                            </select>
+                        </template>
+                        <template x-if="currentTab === 'gmail'">
+                            <span class="text-sm font-bold uppercase tracking-widest">Real Gmail Inbox</span>
+                        </template>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full">
+                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        <span class="text-[10px] font-black text-green-400 uppercase tracking-widest">Environment Live</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- TAB CONTENT -->
+            <div class="flex-1 flex gap-6 overflow-hidden">
+                <!-- INBOX LIST -->
+                <div class="w-[450px] glass rounded-[40px] flex flex-col overflow-hidden">
+                    <div class="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+                        <h3 class="font-black text-sm uppercase tracking-widest">Active Inbox</h3>
+                        <template x-if="currentTab === 'gmail'">
+                             <button @click="fetchGmail()" class="text-[10px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest disabled:opacity-50" :disabled="isFetching">
+                                <span x-text="isFetching ? 'Fetching...' : '[ Refresh ]'"></span>
+                             </button>
+                        </template>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                        <template x-for="email in inbox" :key="email.id">
+                            <div @click="openEmail(email)" 
+                                 :class="selectedEmail && selectedEmail.id === email.id ? 'bg-blue-600/20 border-blue-500 shadow-lg glow' : 'hover:bg-white/5 border-white/5'"
+                                 class="p-6 rounded-3xl border transition-all cursor-pointer group relative overflow-hidden">
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="text-[10px] text-blue-400 font-bold" x-text="email.sender"></span>
+                                    <span class="text-[9px] text-gray-500 mono font-bold">12:00</span>
+                                </div>
+                                <h4 class="font-bold text-sm text-gray-200 group-hover:text-white transition-colors truncate" x-text="email.subject"></h4>
+                            </div>
+                        </template>
+                        <template x-if="inbox.length === 0">
+                            <div class="p-20 text-center opacity-30 select-none">
+                                <div class="text-5xl mb-4">📭</div>
+                                <p class="text-xs font-black uppercase tracking-widest">Inbox Deciphered</p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- EMAIL VIEW / ACTIONS -->
+                <div class="flex-1 glass rounded-[40px] flex flex-col overflow-hidden relative">
+                    <template x-if="selectedEmail">
+                        <div class="flex flex-col h-full animate-fadeIn">
+                            <div class="p-10 border-b border-white/5">
+                                <div class="flex justify-between items-start mb-6">
+                                    <div class="flex gap-4">
+                                        <div class="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl">👤</div>
+                                        <div>
+                                            <h2 class="text-2xl font-black mb-1 capitalize tracking-tight" x-text="selectedEmail.subject"></h2>
+                                            <p class="text-sm text-blue-400 font-medium" x-text="selectedEmail.sender"></p>
+                                        </div>
+                                    </div>
+                                    <div class="bg-blue-500/10 border border-blue-500/30 px-4 py-2 rounded-xl">
+                                        <p class="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1">Risk Score</p>
+                                        <p class="text-xl font-black text-white text-center">--</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex-1 p-10 overflow-y-auto leading-relaxed text-gray-300 text-lg mono italic">
+                                <div class="bg-white/[0.02] p-8 rounded-[30px] border border-white/5 min-h-full shadow-inner" x-text="selectedEmail.body"></div>
+                            </div>
+
+                            <!-- TRIAGE ACTIONS -->
+                            <div class="p-10 bg-[#0b0f19]/80 backdrop-blur-3xl border-t border-white/5">
+                                <p class="text-[11px] font-black text-gray-500 uppercase tracking-[0.5em] mb-8 text-center">Execute Response Protocol</p>
+                                <div class="flex items-center gap-6">
+                                    <div class="flex-1 grid grid-cols-3 gap-4">
+                                        <button @click="submitTriage('ignore', 'low')" class="p-6 rounded-2xl border border-white/10 hover:bg-white/10 font-bold transition-all text-gray-400 hover:text-white group">
+                                            <div class="text-2xl mb-1 group-hover:scale-125 transition-transform">🗑️</div>
+                                            IGNORE
+                                        </button>
+                                        <button @click="submitTriage('reply', 'medium')" class="p-6 rounded-2xl border border-blue-500/20 hover:bg-blue-500/20 font-bold transition-all text-blue-400 group">
+                                            <div class="text-2xl mb-1 group-hover:scale-125 transition-transform">📝</div>
+                                            REPLY
+                                        </button>
+                                        <button @click="submitTriage('escalate', 'high')" class="p-6 rounded-2xl border border-red-500/20 hover:bg-red-500/20 font-bold transition-all text-red-500 group">
+                                            <div class="text-2xl mb-1 group-hover:scale-125 transition-transform">🚨</div>
+                                            ESCALATE
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    
+                    <template x-if="!selectedEmail">
+                        <div class="h-full flex flex-col items-center justify-center text-center p-20 opacity-30 select-none">
+                            <div class="w-24 h-24 rounded-[30px] bg-white/5 border border-white/10 mb-8 flex items-center justify-center text-4xl shadow-inner">👁️</div>
+                            <h3 class="text-2xl font-black uppercase tracking-widest mb-4">Neural Link Ready</h3>
+                            <p class="max-w-md text-sm leading-relaxed">Select specialized records from the left encrypted buffer to begin triage or fetch live telemetry from Gmail.</p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- SCANNER TIER (Hidden if not active) -->
+            <div x-show="currentTab === 'scanner'" x-cloak class="flex-1 glass rounded-[40px] flex flex-col p-12">
+                <div class="max-w-4xl mx-auto w-full">
+                    <h2 class="text-4xl font-black mb-2 tracking-tight">Pro-Scanner <span class="text-blue-500">v2.0</span></h2>
+                    <p class="text-gray-400 mb-12">Stateless analysis of suspicious strings powered by keyword entropy.</p>
+                    
+                    <div class="space-y-8">
+                        <div class="relative">
+                            <textarea x-model="scanText" placeholder="Paste suspicious content here..." 
+                                      class="w-full h-64 bg-white/5 border border-white/10 p-10 rounded-[40px] focus:outline-none focus:border-blue-500 transition-all font-medium text-lg leading-relaxed mono shadow-inner"></textarea>
+                            <button @click="runScan()" :disabled="isScanning" class="absolute bottom-10 right-10 accent-gradient px-12 py-5 rounded-2xl font-bold shadow-2xl hover:scale-[1.05] transition-all disabled:opacity-50">
+                                <span x-text="isScanning ? 'Scanning...' : 'INITIATE DEEP SCAN'"></span>
+                            </button>
+                        </div>
+                        
+                        <div x-show="scanResult" x-transition class="glass p-10 rounded-[40px] border-l-8 border-blue-500 animate-slideUp">
+                            <div class="flex items-start gap-10">
+                                <div class="text-center bg-white/5 p-8 rounded-3xl border border-white/5 shadow-inner grow-0">
+                                    <p class="text-4xl font-black text-blue-400 mb-2" x-text="(scanResult.scam_likelihood * 100).toFixed(0) + '%'"></p>
+                                    <p class="text-[10px] font-black uppercase tracking-widest text-gray-500">Threat Level</p>
+                                </div>
+                                <div class="flex-1">
+                                    <h4 class="text-2xl font-black mb-4 uppercase tracking-tighter">Recommended Response</h4>
+                                    <div class="flex gap-4 mb-4">
+                                        <span class="px-6 py-2 bg-blue-500/20 text-blue-400 rounded-full font-black text-xs uppercase" x-text="scanResult.suggested_action"></span>
+                                        <span class="px-6 py-2 bg-white/10 text-white rounded-full font-black text-xs uppercase" x-text="scanResult.suggested_priority + ' PRIORITY'"></span>
+                                    </div>
+                                    <p class="text-gray-400 italic font-medium leading-relaxed">Analysis suggests high keyword frequency typically associated with unauthorized access attempts. Escalation recommended for security review.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ANALYTICS TIER -->
+            <div x-show="currentTab === 'analytics'" x-cloak class="flex-1 glass rounded-[40px] flex flex-col p-12 overflow-hidden">
+                <div class="flex justify-between items-end mb-12">
+                    <div>
+                        <h2 class="text-4xl font-black mb-2 tracking-tight">Performance <span class="text-blue-500">Telemetry</span></h2>
+                        <p class="text-gray-400">Real-time yields across active sub-tasks.</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Cumulative XP</p>
+                        <p class="text-4xl font-black text-white" x-text="perf.total_score.toFixed(2)"></p>
+                    </div>
+                </div>
+                
+                <div class="flex-1 min-h-0 bg-white/[0.02] border border-white/5 rounded-[40px] p-8 shadow-inner overflow-hidden">
+                    <canvas id="yieldChart"></canvas>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- RESULT OVERLAY MODAL -->
+    <div x-show="showResult" x-transition.opacity class="fixed inset-0 z-[300] flex items-center justify-center bg-[#0b0f19]/90 backdrop-blur-xl">
+        <div class="glass p-16 rounded-[60px] max-w-2xl w-full text-center animate-fadeIn border-t-[6px] shadow-[0_30px_100px_rgba(0,0,0,0.8)]" :class="resultIsSuccess ? 'border-green-500 shadow-green-500/10' : 'border-red-500 shadow-red-500/10'">
+            <div class="mb-10 relative">
+                <template x-if="resultIsSuccess">
+                    <div>
+                        <div class="absolute inset-0 bg-green-500/20 blur-3xl rounded-full"></div>
+                        <div class="relative w-32 h-32 bg-green-500/10 border border-green-500/30 text-green-400 rounded-full flex items-center justify-center text-6xl mx-auto shadow-[inset_0_0_30px_rgba(34,197,94,0.2)]">✓</div>
+                    </div>
+                </template>
+                <template x-if="!resultIsSuccess">
+                    <div>
+                        <div class="absolute inset-0 bg-red-500/20 blur-3xl rounded-full"></div>
+                        <div class="relative w-32 h-32 bg-red-500/10 border border-red-500/30 text-red-500 rounded-full flex items-center justify-center text-6xl mx-auto shadow-[inset_0_0_30px_rgba(239,68,68,0.2)]">!</div>
+                    </div>
+                </template>
+            </div>
+            <h3 class="text-5xl font-black text-white mb-6 tracking-tight drop-shadow-md" x-text="resultIsSuccess ? 'Decision Correct' : 'Threat Misinterpreted!'"></h3>
+            <div class="inline-block px-10 py-4 bg-gray-900/60 rounded-[30px] mb-10 border border-white/5 shadow-inner">
+                <span class="text-5xl font-black block mb-3 drop-shadow-[0_0_15px_currentColor]" :class="resultIsSuccess ? 'text-green-400' : 'text-red-500'" x-text="'+' + resultScore + ' XP'"></span>
+                <span class="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em]" x-text="resultExpected"></span>
+            </div>
+            <p class="text-2xl text-gray-300 font-medium leading-relaxed italic px-8" x-text="resultReason"></p>
+            <div class="mt-12 pt-10 border-t border-white/5">
+                <p class="text-[11px] font-black text-blue-500 uppercase tracking-[0.6em] animate-pulse">Syncing Telemetry...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTIFICATION -->
+    <div x-show="notif.show" x-transition.slide.right class="fixed top-10 right-10 z-[400] glass px-8 py-4 rounded-2xl border-l-4 border-blue-500 flex items-center gap-4 shadow-2xl">
+        <span class="text-xl">🔔</span>
+        <span class="font-bold text-sm" x-text="notif.text"></span>
+    </div>
+
+    <script>
+        function triageApp() {
+            return {
+                isLoggedIn: false,
+                loginUser: '',
+                loginPass: '',
+                currentTab: 'simulation',
+                selectedTask: 'easy',
+                inbox: [],
+                selectedEmail: null,
+                perf: { total_score: 0, current_streak: 0, rank: 'Novice Analyst', progress_percent: 0 },
+                scanText: '',
+                scanResult: null,
+                isScanning: false,
+                isFetching: false,
+                isTriageProcessing: false,
+                
+                showResult: false,
+                resultScore: 0,
+                resultReason: '',
+                resultExpected: '',
+                resultIsSuccess: true,
+                historyYields: [],
+                chartInstance: null,
+                notif: { show: false, text: '' },
+
+                checkAuth() {
+                    if(localStorage.getItem('mfde_auth') === 'true') {
+                        this.isLoggedIn = true;
+                        this.loadInbox();
+                    }
+                },
+                login() {
+                    if(this.loginUser === 'admin' && this.loginPass === 'mfde2024') {
+                        this.isLoggedIn = true;
+                        localStorage.setItem('mfde_auth', 'true');
+                        this.loadInbox();
+                        this.updatePerf();
+                        this.notify("Analyst Authorized. Welcome to MFDE v2.0.");
+                    } else {
+                        alert("UNAUTHORIZED ACCESS: Authentication Failure");
+                    }
+                },
+                logout() {
+                    this.isLoggedIn = false;
+                    localStorage.removeItem('mfde_auth');
+                    this.notify("Deauthorized.");
+                },
+                notify(msg) {
+                    this.notif.text = msg;
+                    this.notif.show = true;
+                    setTimeout(() => { this.notif.show = false; }, 3000);
+                },
+                async updatePerf() {
+                    const res = await fetch('/api/performance');
+                    this.perf = await res.json();
+                },
+                async loadInbox() {
+                    try {
+                        let endpoint = `/api/inbox/${this.selectedTask}`;
+                        if(this.currentTab === 'gmail') endpoint = `/api/inbox/gmail`;
+                        
+                        const res = await fetch(endpoint);
+                        this.inbox = await res.json();
+                        this.selectedEmail = null;
+                        this.latestReward = null;
+                        this.historyYields = [];
+                        
+                        await fetch('/reset', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ task: this.currentTab === 'simulation' ? this.selectedTask : 'gmail', mode: 'infinite' })
+                        });
+                        
+                        await this.updatePerf();
+                        this.updateChart();
+                    } catch (e) {
+                        this.notify("Buffer error: sync failed.");
+                    }
+                },
+                async fetchGmail() {
+                    this.isFetching = true;
+                    try {
+                        const res = await fetch('/api/gmail/fetch', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ max_emails: 10 })
+                        });
+                        const data = await res.json();
+                        this.notify(`Live Telemetry Sync: ${data.count} emails loaded.`);
+                        this.loadInbox();
+                    } catch (e) {
+                        this.notify("Gmail Sync Error: Backend Offline.");
+                    }
+                    this.isFetching = false;
+                },
+                openEmail(email) {
+                    this.selectedEmail = email;
+                    this.showResult = false;
+                },
+                openAnalytics() {
+                    this.currentTab = 'analytics';
+                    setTimeout(() => { this.initChart(); }, 100);
+                },
+                initChart() {
+                    const ctx = document.getElementById('yieldChart');
+                    if(!ctx) return;
+                    if(this.chartInstance) this.chartInstance.destroy();
+                    
+                    Chart.defaults.color = '#9ca3af';
+                    Chart.defaults.font.family = 'JetBrains Mono';
+                    
+                    this.chartInstance = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: this.historyYields.map((_, i) => 'Op ' + (i+1)),
+                            datasets: [{
+                                label: 'XP Yield',
+                                data: this.historyYields,
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                borderWidth: 3,
+                                fill: true,
+                                tension: 0.4,
+                                pointBackgroundColor: '#8b5cf6',
+                                pointBorderWidth: 2,
+                                pointRadius: 5
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                y: { grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true },
+                                x: { grid: { display: false } }
+                            }
+                        }
+                    });
+                },
+                updateChart() {
+                    if(this.chartInstance) {
+                        this.chartInstance.data.labels = this.historyYields.map((_, i) => 'Op ' + (i+1));
+                        this.chartInstance.data.datasets[0].data = this.historyYields;
+                        this.chartInstance.update();
+                    }
+                },
+                async submitTriage(decision, priority) {
+                    if(this.isTriageProcessing) return;
+                    this.isTriageProcessing = true;
+                    
+                    try {
+                        const res = await fetch('/step', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ decision, priority, email_id: this.selectedEmail.id })
+                        });
+                        const data = await res.json();
+                        
+                        this.historyYields.push(data.reward);
+                        this.updateChart();
+                        
+                        this.resultScore = data.reward;
+                        this.resultReason = data.info.reason;
+                        this.resultExpected = "Expected: " + data.info.correct_decision.toUpperCase() + " / " + data.info.correct_priority.toUpperCase();
+                        this.resultIsSuccess = (data.reward > 0.5);
+                        this.showResult = true;
+                        
+                        await this.updatePerf();
+                        
+                        const currentIndex = this.inbox.findIndex(e => e.id === this.selectedEmail.id);
+                        setTimeout(() => {
+                            this.showResult = false;
+                            if(currentIndex < this.inbox.length - 1) {
+                                this.selectedEmail = this.inbox[currentIndex + 1];
+                            }
+                            this.isTriageProcessing = false;
+                        }, 3500);
+                        
+                    } catch (e) {
+                        this.notify("Processing Error: Step failed.");
+                        this.isTriageProcessing = false;
+                    }
+                },
+                async runScan() {
+                    this.isScanning = true;
+                    this.scanResult = null;
+                    try {
+                        const res = await fetch('/api/scan', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({text: this.scanText})
+                        });
+                        this.scanResult = await res.json();
+                        this.notify("Deep Scan Complete.");
+                    } catch (e) {
+                        this.notify("Scan failed: server offline.");
+                    }
+                    this.isScanning = false;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

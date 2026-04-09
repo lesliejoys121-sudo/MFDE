@@ -15,7 +15,7 @@ TASKS: Dict[str, Dict] = {
             },
             {
                 "email_text": "Buy one get one free! Click here to win a trillion dollars now!!!",
-                "sender": "spam@malicious.com",
+                "sender": "spam@RoshanTeja.com",
                 "subject": "URGENT WINNER",
                 "correct_decision": "ignore",
                 "correct_priority": "low"

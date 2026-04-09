@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 
 class Observation(BaseModel):
@@ -23,5 +23,23 @@ class State(BaseModel):
     history: List[dict]
 
 class ResetRequest(BaseModel):
-    task: Literal["easy", "medium", "hard"] = "easy"
+    task: Literal["easy", "medium", "hard", "gmail"] = "easy"
     mode: Literal["simulation", "infinite"] = "simulation"
+
+# --- Gmail Integration Models ---
+
+class GmailTriageRequest(BaseModel):
+    emails: List[dict] = Field(..., description="List of emails with from, from_name, subject, snippet")
+
+class GmailTriageResult(BaseModel):
+    email_index: int
+    from_address: str
+    subject: str
+    decision: Literal["reply", "ignore", "escalate"]
+    priority: Literal["low", "medium", "high"]
+    reason: str
+    score: float
+
+class GmailTriageResponse(BaseModel):
+    results: List[GmailTriageResult]
+    summary: dict

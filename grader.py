@@ -10,10 +10,10 @@ def grade_step(predicted: dict, true: dict) -> float:
 
     if decision_match and priority_match:
         return 0.99
-    
+
     if decision_match:
         return 0.3
-        
+
     return 0.01
 
 def grade(history: List[Dict]) -> float:
@@ -23,12 +23,40 @@ def grade(history: List[Dict]) -> float:
     """
     if not history:
         return 0.01
-    
+
     total_score = 0.0
-    for step in history:
-        # Extract action and correct labels from history logs
-        total_score += grade_step(step["action"], step)
-        
-    # Ensure final aggregate is strictly between 0 and 1
+    for entry in history:
+        # History objects store the calculated reward in 'reward' or 'true_reward'
+        total_score += entry.get("true_reward", entry.get("reward", 0.01))
+
     average_score = total_score / len(history)
     return round(max(0.01, min(0.99, average_score)), 4)
+
+
+def grade_gmail(results: List[Dict]) -> dict:
+    """
+    Grade a list of Gmail triage results (no ground-truth labels).
+    Uses heuristic confidence scoring instead of exact match.
+    Returns a summary dict with per-decision stats.
+    """
+    if not results:
+        return {"total": 0, "by_decision": {}, "by_priority": {}}
+
+    by_decision = {"escalate": 0, "reply": 0, "ignore": 0}
+    by_priority = {"high": 0, "medium": 0, "low": 0}
+
+    for r in results:
+        dec = r.get("decision", "ignore")
+        pri = r.get("priority", "low")
+        by_decision[dec] = by_decision.get(dec, 0) + 1
+        by_priority[pri] = by_priority.get(pri, 0) + 1
+
+    total = len(results)
+    return {
+        "total": total,
+        "by_decision": by_decision,
+        "by_priority": by_priority,
+        "escalate_rate": round(by_decision["escalate"] / total, 2) if total > 0 else 0,
+        "reply_rate": round(by_decision["reply"] / total, 2) if total > 0 else 0,
+        "ignore_rate": round(by_decision["ignore"] / total, 2) if total > 0 else 0,
+    }

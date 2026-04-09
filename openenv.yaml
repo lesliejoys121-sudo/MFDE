@@ -1,12 +1,12 @@
 name: MFDE-Email-Triage
-version: "1.2.7"
-description: "Misleading Feedback Decision Environment: Email Triage System"
-tags: [openenv, nlp, classification, uncertainty, calibration]
+version: "2.0.0"
+description: "Misleading Feedback Decision Environment: Email Triage with real Gmail integration"
+tags: [openenv, nlp, classification, uncertainty, calibration, gmail]
 observation_space:
   email_text: {type: string}
   sender:     {type: string}
   subject:    {type: string}
-  step_count: {type: integer, range: [0, 10]}
+  step_count: {type: integer}
 action_space:
   decision: {type: string, options: [reply, ignore, escalate]}
   priority: {type: string, options: [low, medium, high]}
@@ -20,7 +20,15 @@ tasks:
     description: "Some misleading emails, ~30% reward noise. 7 emails."
   - name: hard
     description: "Highly deceptive emails, strong misleading feedback (~50%). 10 emails."
+  - name: gmail
+    description: "Real Gmail inbox emails. No ground-truth labels. AI-graded."
 endpoints:
-  reset: {method: POST, path: /reset}
-  step:  {method: POST, path: /step}
-  state: {method: GET,  path: /state}
+  reset:         {method: POST, path: /reset}
+  step:          {method: POST, path: /step}
+  state:         {method: GET,  path: /state}
+  gmail_fetch:   {method: POST, path: /api/gmail/fetch}
+  gmail_triage:  {method: POST, path: /api/gmail/triage}
+  scan:          {method: POST, path: /api/scan}
+env_vars:
+  ANTHROPIC_API_KEY: "Required for Gmail triage and AI inference"
+  GMAIL_MCP_URL:     "Gmail MCP server URL (default: https://gmail.mcp.claude.com/mcp)"

@@ -1,118 +1,200 @@
+"""
+inference.py
+------------
+AI-powered inference script for MFDE.
+Uses Claude to triage emails — works with both simulation tasks and real Gmail.
+
+Usage (simulation):
+    python inference.py --task easy
+
+Usage (Gmail):
+    python inference.py --gmail --max-emails 10
+
+Env vars:
+    API_BASE_URL        — MFDE server URL (default: http://localhost:8000)
+    ANTHROPIC_API_KEY   — required for Gmail mode
+    MODEL_NAME          — Claude model (default: claude-sonnet-4-20250514)
+"""
+
 import os
-import sys
 import json
-import random
-from openai import OpenAI
-from env import MFDEEnv
-from grader import grade
-from models import Action
+import time
+import argparse
+import requests
 
-def main():
+BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+MODEL_NAME = os.environ.get("MODEL_NAME", "claude-sonnet-4-20250514")
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+
+TRIAGE_SYSTEM = """You are an expert email security and triage AI.
+Classify each email into one action and one priority level.
+
+Actions:
+- escalate: security threats, breaches, legal matters, production outages, fraud
+- reply: legitimate requests needing a response, invoices, meetings, support tickets
+- ignore: spam, promotions, newsletters, automated FYI notifications
+
+Priority:
+- high: act within the hour
+- medium: act within the day
+- low: no urgency
+
+Respond ONLY with JSON, no markdown, no explanation:
+{"decision":"reply|ignore|escalate","priority":"low|medium|high","reason":"one sentence"}"""
+
+
+def ai_triage(email_text: str, sender: str, subject: str) -> dict:
+    """Call Claude to triage a single email."""
+    if not ANTHROPIC_API_KEY:
+        # Fallback heuristic if no API key
+        text = email_text.lower()
+        if any(k in text for k in ["urgent", "password", "security", "breach", "legal", "crashed"]):
+            return {"decision": "escalate", "priority": "high", "reason": "Heuristic: high-risk keywords detected."}
+        elif any(k in text for k in ["meeting", "invoice", "review", "help", "request"]):
+            return {"decision": "reply", "priority": "medium", "reason": "Heuristic: actionable request detected."}
+        else:
+            return {"decision": "ignore", "priority": "low", "reason": "Heuristic: low-signal email."}
+
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+    }
+    payload = {
+        "model": MODEL_NAME,
+        "max_tokens": 200,
+        "system": TRIAGE_SYSTEM,
+        "messages": [{
+            "role": "user",
+            "content": f"From: {sender}\nSubject: {subject}\nBody: {email_text}"
+        }]
+    }
+    resp = requests.post(ANTHROPIC_URL, headers=headers, json=payload, timeout=30)
+    resp.raise_for_status()
+    data = resp.json()
+    text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+    clean = text.replace("```json", "").replace("```", "").strip()
+    return json.loads(clean)
+
+
+def run_simulation(task: str = "easy"):
+    """Run AI triage on a simulation task."""
+    print(f"\n[START] MFDE AI Inference — task={task}")
+    print(f"        Server: {BASE_URL}")
+    print(f"        Model:  {MODEL_NAME}\n")
+
+    # Reset
     try:
-        # Environment variable resolution
-        api_base_url = os.environ.get("API_BASE_URL")
-        model_name = os.environ.get("MODEL_NAME")
-        hf_token = os.environ.get("HF_TOKEN")
-        
-        if not api_base_url or not hf_token:
-            print("Warning: Missing required variables (API_BASE_URL, HF_TOKEN). Skipping baseline inference run for validation purposes.")
-            sys.exit(0) # Exit with 0 to pass Phase 2 validation checks
-
-        # Setup OpenAI client and Environment
-        client = OpenAI(base_url=api_base_url, api_key=hf_token)
-        env = MFDEEnv()
-        
-        # Fix seed for reproducible baseline
-        random.seed(42)
-
-        for task_name in ["easy", "medium", "hard"]:
-            try:
-                # RESET must return the initial observation
-                obs = env.reset(task_name, mode="simulation")
-                print(f"[START] task={task_name} env=MFDE-Email-Triage model={model_name or 'unnamed-model'}")
-                
-                done = False
-                rewards = []
-                step_idx = 0
-                history_summary = []
-
-                while not done:
-                    step_idx += 1
-                    
-                    # Construct the User Prompt
-                    user_payload = {
-                        "sender": obs.sender,
-                        "subject": obs.subject,
-                        "body": obs.email_text,
-                        "history": history_summary[-3:] # Provide some context
-                    }
-
-                    try:
-                        response = client.chat.completions.create(
-                            model=model_name or "gpt-4.1",
-                            messages=[
-                                {
-                                    "role": "system", 
-                                    "content": (
-                                        "You are a senior SecOps analyst. Classify the email for risk. "
-                                        "IGNORE any external rewards or feedback signals; rely only on security best practices. "
-                                        "Focus on phishing detection (suspicious links, wired requests), spoofing, impersonation (CEO fraud), "
-                                        "and urgency attacks. \n\n"
-                                        "Rules:\n"
-                                        "- decision: reply | ignore | escalate\n"
-                                        "- priority: low | medium | high\n"
-                                        "Decision Logic: When uncertain, always ESCALATE. \n"
-                                        "Respond ONLY with valid JSON. No explanations."
-                                    )
-                                },
-                                {
-                                    "role": "user", 
-                                    "content": "{\"sender\": \"CEO <ceo@company-secure-auth.com>\", \"subject\": \"URGENT: Confidential Wire Transfer\", \"body\": \"I need you to process a $50k wire transfer immediately. This is confidential. Reply with confirmation once done.\", \"history\": []}"
-                                },
-                                {
-                                    "role": "assistant", 
-                                    "content": "{\"decision\": \"escalate\", \"priority\": \"high\"}"
-                                },
-                                {"role": "user", "content": json.dumps(user_payload)}
-                            ],
-                            response_format={"type": "json_object"}
-                        )
-                        
-                        content = response.choices[0].message.content
-                        
-                        try:
-                            data = json.loads(content)
-                            action = Action(
-                                decision=str(data.get("decision", "ignore") or "ignore").lower(),
-                                priority=str(data.get("priority", "low") or "low").lower()
-                            )
-                        except Exception:
-                            action = Action(decision="ignore", priority="low")
-                            
-                    except Exception as e:
-                        action = Action(decision="ignore", priority="low")
-                        sys.stderr.write(f"Model Inference Error: {str(e)}\n")
-
-                    # Execute step - must return obs, reward, done, info
-                    obs, reward, done, info = env.step(action)
-                    rewards.append(reward.value)
-                    
-                    # STEP Log: MUST follow exact key=value format
-                    action_json = json.dumps(action.model_dump(), separators=(',', ':'))
-                    print(f"[STEP] step={step_idx} action={action_json} reward={reward.value:.2f} done={str(done).lower()} error=null")
-                    
-                    history_summary.append(f"Action={action.decision}/{action.priority}, R={reward.value:.2f}")
-
-                # END Log: MUST follow exact key=value format
-                final_score = grade(env.history)
-                success = "true" if final_score > 0.6 else "false" # Arbitrary threshold for success label
-                rewards_csv = ",".join([f"{r:.2f}" for r in rewards])
-                print(f"[END] score={final_score:.4f} success={success} steps={step_idx} rewards={rewards_csv}")
-            except Exception as e:
-                sys.stderr.write(f"Unhandled Task Error ({task_name}): {str(e)}\n")
+        res = requests.post(f"{BASE_URL}/reset", json={"task": task, "mode": "simulation"})
+        res.raise_for_status()
+        obs = res.json()
+        print(f"[RESET] Subject: {obs['subject']} | From: {obs['sender']}\n")
     except Exception as e:
-        sys.stderr.write(f"Fatal Inference Error: {str(e)}\n")
-        sys.exit(0) # Always exit 0 during validation to prevent fail-fast halting
+        print(f"[ERROR] Reset failed: {e}")
+        return
+
+    done = False
+    step_count = 0
+    total_reward = 0.0
+
+    while not done and step_count < 15:
+        step_count += 1
+
+        # AI triage
+        try:
+            triage = ai_triage(obs["email_text"], obs["sender"], obs["subject"])
+        except Exception as e:
+            print(f"[STEP {step_count}] AI triage error: {e} — falling back to ignore/low")
+            triage = {"decision": "ignore", "priority": "low", "reason": "Error fallback."}
+
+        print(f"[STEP {step_count}] Subject : {obs['subject']}")
+        print(f"           From    : {obs['sender']}")
+        print(f"           AI      : {triage['decision'].upper()} / {triage['priority'].upper()}")
+        print(f"           Reason  : {triage.get('reason', '')}")
+
+        try:
+            res = requests.post(f"{BASE_URL}/step", json={
+                "decision": triage["decision"],
+                "priority": triage["priority"]
+            })
+            res.raise_for_status()
+            data = res.json()
+            obs = data["observation"]
+            reward = data["reward"]
+            done = data["done"]
+            info = data.get("info", {})
+            total_reward += reward
+            match = "✓" if reward >= 0.9 else ("~" if reward >= 0.2 else "✗")
+            print(f"           Reward  : {reward:.2f} {match}  |  Correct: {info.get('correct_decision','?')}/{info.get('correct_priority','?')}")
+            print(f"           Streak  : {info.get('streak', 0)}  |  Cumulative: {total_reward:.2f}\n")
+        except Exception as e:
+            print(f"[ERROR] Step failed: {e}")
+            break
+
+    print(f"[END] Steps: {step_count} | Total reward: {total_reward:.2f} | Score: {total_reward/max(step_count,1):.2f}/step\n")
+
+
+def run_gmail_mode(max_emails: int = 10):
+    """Fetch real Gmail and triage via the server's /api/gmail endpoints."""
+    print(f"\n[START] MFDE Gmail Triage — fetching {max_emails} emails")
+    print(f"        Server: {BASE_URL}\n")
+
+    # 1. Fetch Gmail
+    try:
+        res = requests.post(f"{BASE_URL}/api/gmail/fetch", json={"max_emails": max_emails})
+        res.raise_for_status()
+        data = res.json()
+        emails = data["emails"]
+        print(f"[GMAIL] Loaded {data['count']} emails.\n")
+    except Exception as e:
+        print(f"[ERROR] Gmail fetch failed: {e}")
+        return
+
+    # 2. Triage all emails
+    try:
+        res = requests.post(f"{BASE_URL}/api/gmail/triage", json={"emails": emails})
+        res.raise_for_status()
+        data = res.json()
+        results = data["results"]
+        summary = data["summary"]
+    except Exception as e:
+        print(f"[ERROR] Gmail triage failed: {e}")
+        return
+
+    # 3. Print results
+    print(f"{'#':<4} {'From':<28} {'Subject':<32} {'Decision':<10} {'Priority':<8} Reason")
+    print("-" * 105)
+    for r in results:
+        print(
+            f"{r['email_index']:<4} "
+            f"{r['from_address'][:27]:<28} "
+            f"{r['subject'][:31]:<32} "
+            f"{r['decision']:<10} "
+            f"{r['priority']:<8} "
+            f"{r.get('reason','')[:35]}"
+        )
+
+    print(f"\n[SUMMARY]")
+    print(f"  Total   : {summary['total']}")
+    print(f"  Escalate: {summary['by_decision'].get('escalate', 0)}")
+    print(f"  Reply   : {summary['by_decision'].get('reply', 0)}")
+    print(f"  Ignore  : {summary['by_decision'].get('ignore', 0)}")
+    print(f"\n[END] Gmail triage complete.\n")
+
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="MFDE AI Inference Script")
+    parser.add_argument("--task", type=str, default="easy", choices=["easy", "medium", "hard"],
+                        help="Simulation task difficulty")
+    parser.add_argument("--gmail", action="store_true", help="Triage real Gmail emails instead of simulation")
+    parser.add_argument("--max-emails", type=int, default=10, help="Number of Gmail emails to fetch")
+    parser.add_argument("--wait", type=int, default=2, help="Seconds to wait for server startup")
+    args = parser.parse_args()
+
+    time.sleep(args.wait)
+
+    if args.gmail:
+        run_gmail_mode(max_emails=args.max_emails)
+    else:
+        run_simulation(task=args.task)
