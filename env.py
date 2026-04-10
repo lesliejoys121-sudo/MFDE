@@ -80,20 +80,57 @@ class MFDEEnv:
 
     def scan(self, text: str) -> dict:
         text_lower = text.lower()
-        scam_keywords = [
-            "urgent", "refund", "gift card", "ceo", "bitcoin",
-            "password expire", "unauthorized", "bank account", "winner", "prize"
-        ]
-        matches = [kw for kw in scam_keywords if kw in text_lower]
-        score = len(matches) / 5.0
-        prediction = "escalate" if score > 0.4 else ("reply" if score > 0.1 else "ignore")
-        priority = "high" if score > 0.6 else ("medium" if score > 0.2 else "low")
-        return {
-            "scam_likelihood": round(max(0.0, min(1.0, score)), 2),
-            "suggested_action": prediction,
-            "suggested_priority": priority,
-            "detected_patterns": matches[:3]
+        
+        # Threat Profiles
+        threats = {
+            "High-Risk": {
+                "categories": ["BEC / Executive Fraud", "Malware / Ransomware"],
+                "patterns": ["ceo", "president", "wire transfer", "confidential", "direct deposit", ".exe", ".scr", ".vbs", ".zip", "ransom", "decrypt"],
+                "score_weight": 0.8
+            },
+            "Medium-Risk": {
+                "categories": ["Flagged Phishing", "Credential Harvesting"],
+                "patterns": ["click here", "login", "verify account", "identity", "suspended", "password reset", "security alert"],
+                "score_weight": 0.5
+            },
+            "Low-Risk": {
+                "categories": ["Marketing Noise", "Unusual Metadata"],
+                "patterns": ["winner", "prize", "free", "limited time", "million dollars", "lottery"],
+                "score_weight": 0.2
+            }
         }
+
+        detected_categories = []
+        max_score = 0.0
+        risk_level = "Safe"
+        matches = []
+
+        for level, config in threats.items():
+            level_matches = [p for p in config["patterns"] if p in text_lower]
+            if level_matches:
+                matches.extend(level_matches)
+                # Weighted score based on hits and base weight
+                current_score = config["score_weight"] + (len(level_matches) * 0.05)
+                if current_score > max_score:
+                    max_score = current_score
+                    risk_level = level
+                    detected_categories = config["categories"]
+
+        final_score = round(max(0.02, min(0.98, max_score)), 2)
+        if final_score < 0.1:
+            risk_level = "Safe"
+            detected_categories = ["Verified Legitimate"]
+
+        return {
+            "scam_likelihood": final_score,
+            "risk_level": risk_level,
+            "threat_category": " / ".join(detected_categories),
+            "suggested_action": "escalate" if final_score > 0.4 else ("reply" if final_score > 0.1 else "ignore"),
+            "suggested_priority": "high" if final_score > 0.6 else ("medium" if final_score > 0.2 else "low"),
+            "detected_patterns": list(set(matches))[:5],
+            "analysis_summary": f"Detected {risk_level} indicator(s). Vector: {detected_categories[0]}."
+        }
+
 
     def _get_obs(self) -> Observation:
         emails = self._active_emails()
