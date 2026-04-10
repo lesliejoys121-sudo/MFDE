@@ -108,7 +108,9 @@
                     <option value="easy" class="bg-gray-900">Easy Target (1.0x)</option>
                     <option value="medium" class="bg-gray-900">Medium Vector (2.0x)</option>
                     <option value="hard" class="bg-gray-900">Hard Alert (3.0x)</option>
+                    <option value="stress_test" class="bg-gray-900">STRESS TEST (5.0x)</option>
                     <option value="gmail" class="bg-gray-900">Live Telemetry</option>
+
                 </select>
                 <!-- Arrow -->
                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 z-0">▼</div>
@@ -148,6 +150,16 @@
                     </div>
                     <span class="font-black text-[11px] tracking-widest uppercase">Analytics Yield</span>
                 </button>
+
+                <button @click="openMatrix()" 
+                        :class="currentTab === 'matrix' ? 'pulse-border bg-[#1a203a] text-white shadow-[inset_0_0_20px_rgba(59,130,246,0.1)]' : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'"
+                        class="glass-panel w-full p-4 flex items-center gap-4 transition-all rounded-2xl group border">
+                    <div class="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center text-red-400 border border-red-500/30 group-hover:scale-110 transition-transform">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.4503-.321c-2.43 1.258-4.706 2.552-7.109 3.462a.707.707 0 00-.375.494c-.512 3.146.351 6.19 2.598 9.16a1 1 0 00.1.115c2.1 2.307 4.666 3.69 7.69 4.09a.703.703 0 00.465-.075c3.078-1.335 5.258-3.303 6.54-5.903a.677.677 0 00.041-.335c-.035-3.328-1.123-6.446-3.26-9.109a1 1 0 00-.1-.115c-1.554-1.631-3.415-2.73-5.518-3.462z" clip-rule="evenodd"></path></svg>
+                    </div>
+                    <span class="font-black text-[11px] tracking-widest uppercase">Threat Matrix</span>
+                </button>
+
             </nav>
             
             <!-- SYSTEM CORE BADGE -->
@@ -325,6 +337,68 @@
                 <canvas id="yieldChart"></canvas>
             </div>
         </div>
+
+        <!-- MATRIX TAB -->
+        <div x-show="currentTab === 'matrix'" x-cloak class="flex-1 flex gap-6 min-h-0 overflow-hidden">
+            <div class="glass-panel p-10 border-white/5 rounded-3xl flex-1 flex flex-col">
+                <h2 class="text-2xl font-black uppercase tracking-[0.2em] mb-8 shrink-0 text-red-400">Threat Matrix Calibration</h2>
+                <div class="flex-1 grid grid-cols-2 gap-8 min-h-0">
+                    <!-- Radar/Radar chart -->
+                    <div class="glass-panel bg-black/40 border-white/5 rounded-2xl p-6 flex flex-col items-center justify-center min-h-0 min-w-0 overflow-hidden">
+                         <canvas id="radarChart"></canvas>
+                    </div>
+                    <!-- Stats Grid -->
+                    <div class="flex flex-col gap-4">
+                        <div class="glass-panel bg-black/20 p-6 rounded-2xl border-white/5">
+                            <h3 class="text-[10px] font-black uppercase text-gray-500 tracking-widest mb-4">Calibration Consistency</h3>
+                            <div class="flex items-end gap-2">
+                                <span class="text-4xl font-black text-white" x-text="(extended.calibration_score * 100).toFixed(0) + '%'"></span>
+                                <span class="text-[10px] text-green-500 font-bold mb-1.5">OPTIMIZED</span>
+                            </div>
+                        </div>
+                        <div class="glass-panel bg-black/20 p-6 rounded-2xl border-white/5">
+                            <h3 class="text-[10px] font-black uppercase text-gray-500 tracking-widest mb-4">Noise Impact Ratio</h3>
+                            <div class="flex items-end gap-2">
+                                <span class="text-4xl font-black text-white" x-text="(extended.noise_impact_ratio * 100).toFixed(0) + '%'"></span>
+                                <span class="text-[10px] text-red-500 font-bold mb-1.5" x-text="extended.noise_impact_ratio > 0.5 ? 'CRITICAL NOISE' : 'SIGNAL STABLE'"></span>
+                            </div>
+                        </div>
+                        <!-- DECEPTION EXPOSURE LIST -->
+                        <div class="flex-1 glass-panel bg-black/20 p-6 rounded-2xl border-white/5 overflow-y-auto">
+                            <h3 class="text-[10px] font-black uppercase text-gray-500 tracking-widest mb-4">Deception Exposure History</h3>
+                            <div class="flex flex-wrap gap-2">
+                                <template x-for="(count, type) in extended.deception_exposure" :key="type">
+                                    <div class="px-3 py-1.5 bg-red-900/20 border border-red-500/20 rounded text-[10px] font-black uppercase text-red-400" 
+                                         x-text="type + ': ' + count"></div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AGENT CONSOLE (Right side of matrix) -->
+            <div class="w-96 glass-panel border-white/5 bg-black/60 rounded-3xl flex flex-col overflow-hidden">
+                <div class="p-6 border-b border-white/5 flex justify-between items-center bg-gray-900/40">
+                    <span class="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Operational Console</span>
+                    <div class="flex gap-1.5">
+                        <div class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div>
+                        <div class="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>
+                        <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 font-mono text-[10px] flex flex-col gap-2">
+                    <template x-for="log in extended.recent_logs" :key="log.step">
+                        <div class="p-2 rounded bg-white/5 border-l-2" :class="log.noise_applied ? 'border-red-500' : 'border-blue-500'">
+                            <p class="text-blue-400 font-bold mb-1" x-text="'[OP_' + log.step + '] ACTION: ' + log.action.decision.toUpperCase()"></p>
+                            <p class="text-gray-400" x-text="'-> True: ' + log.true_reward.toFixed(2) + ' | Feed: ' + log.feedback_reward.toFixed(2)"></p>
+                            <p x-show="log.noise_applied" class="text-red-500 text-[8px] mt-1" x-text="'!! NOISE DETECTED: ' + log.noise_profile"></p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
     </main>
 
     <!-- FLOATING NOTIFICATION -->
@@ -342,6 +416,7 @@
                 inbox: [],
                 selectedEmail: null,
                 perf: { total_score: 0, current_streak: 0, rank: 'NOVICE ANALYST', progress_percent: 0 },
+                extended: { action_distribution: {}, noise_impact_ratio: 0, calibration_score: 0, consistency_rating: 0, deception_exposure: {}, recent_logs: [] },
                 
                 scanText: '',
                 scanResult: null,
@@ -353,11 +428,12 @@
                 
                 historyYields: [],
                 chartInstance: null,
+                radarInstance: null,
                 notif: { show: false, text: '' },
 
                 initApp() {
-                    // Straight to dashboard, load active queue
                     this.loadInbox();
+                    this.updateExtended();
                     this.notify("System Online. Neural Link established.");
                 },
 
@@ -367,14 +443,26 @@
                     setTimeout(() => { this.notif.show = false; }, 3500);
                 },
 
+                async updateExtended() {
+                    try {
+                        const res = await fetch('/api/analytics/extended');
+                        this.extended = await res.json();
+                        if(this.currentTab === 'matrix') this.updateRadar();
+                    } catch (e) {
+                         console.warn("Extended sync failed", e);
+                    }
+                },
+
                 async updatePerf() {
                     try {
                         const res = await fetch('/api/performance');
                         this.perf = await res.json();
+                        this.updateExtended();
                     } catch (e) {
                          console.warn("Performance sync failed", e);
                     }
                 },
+
 
                 async loadInbox() {
                     try {
@@ -415,6 +503,72 @@
                     this.currentTab = 'analytics';
                     setTimeout(() => { this.initChart(); }, 50);
                 },
+
+                openMatrix() {
+                    this.currentTab = 'matrix';
+                    setTimeout(() => { 
+                        this.initRadar();
+                        this.updateExtended();
+                    }, 50);
+                },
+
+                initRadar() {
+                    const ctx = document.getElementById('radarChart');
+                    if(!ctx) return;
+                    if(this.radarInstance) this.radarInstance.destroy();
+
+                    const data = {
+                        labels: ['Reply Speed', 'Escalation Recall', 'Ignore Precision', 'Noise Resistance', 'Calibration'],
+                        datasets: [{
+                            label: 'Agent Vectors',
+                            data: [
+                                this.extended.consistency_rating * 100,
+                                (this.extended.action_distribution.escalate || 0) * 10,
+                                (this.extended.action_distribution.ignore || 0) * 10,
+                                (1.0 - this.extended.noise_impact_ratio) * 100,
+                                this.extended.calibration_score * 100
+                            ],
+                            fill: true,
+                            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                            borderColor: 'rgb(239, 68, 68)',
+                            pointBackgroundColor: 'rgb(239, 68, 68)',
+                            pointBorderColor: '#fff',
+                        }]
+                    };
+
+                    this.radarInstance = new Chart(ctx, {
+                        type: 'radar',
+                        data: data,
+                        options: {
+                            elements: { line: { borderWidth: 3 } },
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                r: {
+                                    angleLines: { color: 'rgba(255,255,255,0.05)' },
+                                    grid: { color: 'rgba(255,255,255,0.1)' },
+                                    pointLabels: { color: '#9ca3af', font: { size: 10, weight: 'bold' } },
+                                    ticks: { display: false, stepSize: 20 },
+                                    suggestedMin: 0,
+                                    suggestedMax: 100
+                                }
+                            }
+                        }
+                    });
+                },
+
+                updateRadar() {
+                    if(this.radarInstance) {
+                        this.radarInstance.data.datasets[0].data = [
+                            this.extended.consistency_rating * 100,
+                            (this.extended.action_distribution.escalate || 0) * 10,
+                            (this.extended.action_distribution.ignore || 0) * 10,
+                            (1.0 - this.extended.noise_impact_ratio) * 100,
+                            this.extended.calibration_score * 100
+                        ];
+                        this.radarInstance.update();
+                    }
+                },
+
 
                 // --- CHART LOGIC KEEP IDENTICAL TO FIXES ---
                 initChart() {

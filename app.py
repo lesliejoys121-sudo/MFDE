@@ -129,6 +129,43 @@ def get_performance():
         "progress_percent": min(100, (score / next_goal) * 100)
     }
 
+@app.get("/api/analytics/extended")
+def get_extended_analytics():
+    history = env.history
+    if not history:
+        return {
+            "action_distribution": {"reply": 0, "ignore": 0, "escalate": 0},
+            "noise_impact": [],
+            "calibration": 0.0,
+            "consistency": 1.0,
+            "deception_exposure": {}
+        }
+
+    decisions = [h["action"]["decision"] for h in history]
+    actions_count = {d: decisions.count(d) for d in ["reply", "ignore", "escalate"]}
+    
+    # Calculate calibration: correlation between true_reward and feedback_reward (simplified)
+    # Actually, let's track "Misleading Events"
+    noise_events = [h for h in history if h.get("noise_applied", False)]
+    impact = len(noise_events) / len(history) if history else 0
+    
+    # Consistency: streak-based metric
+    consistency = env.current_streak / len(history) if history else 1.0
+    
+    # Deception exposure
+    deceptions = [h.get("deception_type", "none") for h in history if h.get("deception_type", "none") != "none"]
+    deception_counts = {d: deceptions.count(d) for d in set(deceptions)}
+
+    return {
+        "action_distribution": actions_count,
+        "noise_impact_ratio": round(impact, 2),
+        "calibration_score": round(1.0 - (sum(abs(h.get("true_reward", 0) - h.get("feedback_reward", h.get("true_reward", 0))) for h in history) / len(history)), 2),
+        "consistency_rating": round(consistency, 2),
+        "deception_exposure": deception_counts,
+        "recent_logs": history[-10:] # For the "Agent Console"
+    }
+
+
 @app.get("/api/inbox/{task}")
 def get_inbox(task: str):
     emails = env.get_task_emails(task)

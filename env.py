@@ -152,14 +152,39 @@ class MFDEEnv:
             "streak": self.current_streak,
             "correct_decision": email.get("correct_decision", "n/a"),
             "correct_priority": email.get("correct_priority", "n/a"),
-            "reason": email.get("reason", "N/A")
+            "reason": email.get("reason", "N/A"),
+            "deception_type": email.get("deception_type", "none")
         })
 
-        feedback_reward = round(true_reward, 2)
+        # --- Semantic Noise Engine ---
+        noise_factor = email.get("noise_factor", 0.1)
         noise_prob = task_data.get("reward_noise_prob", 0.0) if not self._using_gmail else 0.0
+        
+        feedback_reward = true_reward
+        noise_applied = False
+        noise_profile = "none"
+
         if random.random() < noise_prob:
-            noise = random.uniform(-0.1, 0.1)
+            # Shift noise based on noise_factor
+            # High noise factor = higher variance and potential for misleadingly low rewards even on correct actions
+            variance = noise_factor * 0.2
+            noise = random.uniform(-variance, variance)
+            
+            # Contextual Bias: Specific deception types have unique noise profiles
+            deception = email.get("deception_type", "none")
+            if deception != "none":
+                # Misleadingly penalize correct actions on deceptive emails
+                if true_reward > 0.9:
+                    noise -= (noise_factor * 0.15) # Penalize
+                    noise_profile = f"critical_{deception}"
+                else:
+                    noise += (noise_factor * 0.1) # Confuse
+                    noise_profile = f"masking_{deception}"
+            else:
+                noise_profile = "stochastic"
+
             feedback_reward = round(max(0.02, min(0.98, true_reward + noise)), 2)
+            noise_applied = True
 
         self.current_step += 1
 
@@ -173,11 +198,16 @@ class MFDEEnv:
 
         return obs_to_return, Reward(value=feedback_reward), self.is_done, {
             "true_reward": true_reward,
+            "feedback_reward": feedback_reward,
+            "noise_applied": noise_applied,
+            "noise_profile": noise_profile,
             "streak": self.current_streak,
             "reason": email.get("reason", "N/A"),
+            "deception_type": email.get("deception_type", "none"),
             "correct_decision": email.get("correct_decision", "n/a"),
             "correct_priority": email.get("correct_priority", "n/a")
         }
+
 
     def _get_obs_last(self) -> Observation:
         emails = self._active_emails()

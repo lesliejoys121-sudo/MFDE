@@ -159,7 +159,8 @@ def main():
 
         env = MFDEEnv()
 
-        for task_name in ["easy", "medium", "hard"]:
+        for task_name in ["easy", "medium", "hard", "stress_test"]:
+
             try:
                 run_task(env, task_name, client)
             except Exception as e:
