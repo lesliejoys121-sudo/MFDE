@@ -18,16 +18,14 @@ import time
 import requests
 from grader import grade_gmail
 
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+HF_TOKEN = os.getenv("HF_TOKEN") or os.environ.get("ANTHROPIC_API_KEY", "")
 GMAIL_MCP_URL = os.environ.get("GMAIL_MCP_URL", "https://gmail.mcp.claude.com/mcp")
-MODEL = "claude-sonnet-4-20250514"
-API_URL = "https://api.anthropic.com/v1/messages"
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 
 HEADERS = {
     "Content-Type": "application/json",
-    "x-api-key": ANTHROPIC_API_KEY,
-    "anthropic-version": "2023-06-01",
-    "anthropic-beta": "mcp-client-2025-04-04",
+    "Authorization": f"Bearer {HF_TOKEN}"
 }
 
 TRIAGE_SYSTEM = """You are an expert email security and triage AI.
@@ -66,11 +64,10 @@ def fetch_gmail_emails(max_emails: int = 10) -> list:
         }]
     }
 
-    resp = requests.post(API_URL, headers=HEADERS, json=payload, timeout=60)
+    resp = requests.post(f"{API_BASE_URL}/chat/completions", headers=HEADERS, json=payload, timeout=60)
     resp.raise_for_status()
     data = resp.json()
-
-    text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+    text = data["choices"][0]["message"]["content"]
     clean = text.replace("```json", "").replace("```", "").strip()
     emails = json.loads(clean)
     print(f"[GMAIL] Fetched {len(emails)} emails.")
@@ -82,21 +79,20 @@ def triage_email(email: dict) -> dict:
     payload = {
         "model": MODEL,
         "max_tokens": 200,
-        "system": TRIAGE_SYSTEM,
-        "messages": [{
-            "role": "user",
-            "content": (
+        "messages": [
+            {"role": "system", "content": TRIAGE_SYSTEM},
+            {"role": "user", "content": (
                 f"From: {email.get('from_name', '')} <{email.get('from', '')}>\n"
                 f"Subject: {email.get('subject', '(no subject)')}\n"
                 f"Body: {email.get('snippet', '')}"
-            )
-        }]
+            )}
+        ]
     }
 
-    resp = requests.post(API_URL, headers=HEADERS, json=payload, timeout=30)
+    resp = requests.post(f"{API_BASE_URL}/chat/completions", headers=HEADERS, json=payload, timeout=30)
     resp.raise_for_status()
     data = resp.json()
-    text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+    text = data["choices"][0]["message"]["content"]
     clean = text.replace("```json", "").replace("```", "").strip()
     return json.loads(clean)
 
@@ -106,8 +102,8 @@ def run_gmail_triage(max_emails: int = 10) -> list:
     Full pipeline: fetch → triage → grade → print summary.
     Returns list of triage result dicts.
     """
-    if not ANTHROPIC_API_KEY:
-        raise ValueError("ANTHROPIC_API_KEY environment variable is not set.")
+    if not HF_TOKEN:
+        raise ValueError("HF_TOKEN (or ANTHROPIC_API_KEY) environment variable is not set.")
 
     emails = fetch_gmail_emails(max_emails)
     results = []

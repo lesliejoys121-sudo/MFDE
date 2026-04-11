@@ -16,7 +16,8 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 # Env vars (override at runtime or in HF Space secrets)
-ENV ANTHROPIC_API_KEY=""
+ENV HF_TOKEN=""
+ENV MODEL_NAME="Qwen/Qwen2.5-72B-Instruct"
 ENV GMAIL_MCP_URL="https://gmail.mcp.claude.com/mcp"
 ENV MFDE_SERVER_URL="http://127.0.0.1:7860"
 

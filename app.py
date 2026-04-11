@@ -16,10 +16,10 @@ app = FastAPI(
 )
 env = MFDEEnv()
 
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+HF_TOKEN = os.getenv("HF_TOKEN") or os.environ.get("ANTHROPIC_API_KEY", "")
 GMAIL_MCP_URL = os.environ.get("GMAIL_MCP_URL", "https://gmail.mcp.claude.com/mcp")
-ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-MODEL = "claude-sonnet-4-20250514"
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 
 TRIAGE_SYSTEM = """You are an expert email security and triage AI.
 Classify each email into one action and one priority level.
@@ -188,10 +188,11 @@ def gmail_fetch(req: GmailFetchRequest):
 
     headers = {
         "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "anthropic-beta": "mcp-client-2025-04-04",
+        "Authorization": f"Bearer {HF_TOKEN}"
     }
+
+    # Note: MCP fetching is still Anthropic-centric in some setups, 
+    # but here we redirect the prompt to the HF-compatible router.
 
     payload = {
         "model": MODEL,
@@ -209,10 +210,10 @@ def gmail_fetch(req: GmailFetchRequest):
     }
 
     try:
-        resp = requests.post(ANTHROPIC_API_URL, headers=headers, json=payload, timeout=60)
+        resp = requests.post(f"{API_BASE_URL}/chat/completions", headers=headers, json=payload, timeout=60)
         resp.raise_for_status()
         data = resp.json()
-        text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+        text = data["choices"][0]["message"]["content"]
         clean = text.replace("```json", "").replace("```", "").strip()
         emails = json.loads(clean)
     except Exception as e:
@@ -229,8 +230,7 @@ def gmail_triage(req: GmailTriageRequest):
 
     headers = {
         "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
+        "Authorization": f"Bearer {HF_TOKEN}"
     }
 
     results = []
@@ -238,21 +238,20 @@ def gmail_triage(req: GmailTriageRequest):
         payload = {
             "model": MODEL,
             "max_tokens": 200,
-            "system": TRIAGE_SYSTEM,
-            "messages": [{
-                "role": "user",
-                "content": (
+            "messages": [
+                {"role": "system", "content": TRIAGE_SYSTEM},
+                {"role": "user", "content": (
                     f"From: {email.get('from_name', '')} <{email.get('from', '')}>\n"
                     f"Subject: {email.get('subject', '(no subject)')}\n"
                     f"Body: {email.get('snippet', '')}"
-                )
-            }]
+                )}
+            ]
         }
         try:
-            resp = requests.post(ANTHROPIC_API_URL, headers=headers, json=payload, timeout=30)
+            resp = requests.post(f"{API_BASE_URL}/chat/completions", headers=headers, json=payload, timeout=30)
             resp.raise_for_status()
             data = resp.json()
-            text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+            text = data["choices"][0]["message"]["content"]
             clean = text.replace("```json", "").replace("```", "").strip()
             triage = json.loads(clean)
 
