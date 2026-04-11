@@ -288,3 +288,10 @@ def root():
     
     # Fallback to a basic message if dashboard.html is missing
     return HTMLResponse(content="<h1>MFDE v2.0 API is running</h1><p>dashboard.html not found.</p>")
+
+def main():
+    import uvicorn
+    uvicorn.run("server.app:app", host="0.0.0.0", port=8000, reload=False)
+
+if __name__ == "__main__":
+    main()
