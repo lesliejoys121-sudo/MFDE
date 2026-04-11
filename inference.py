@@ -23,7 +23,8 @@ from models import Action
 from typing import List, Optional
 
 # ── credentials & config ────────────────────────────────────────────────────
-API_KEY      = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+HF_TOKEN     = os.getenv("HF_TOKEN")
+API_KEY      = HF_TOKEN or os.getenv("API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-72B-Instruct")
 SUCCESS_SCORE_THRESHOLD = 0.1   # matches official template
@@ -58,9 +59,10 @@ KEYWORD_MAP = {
     "schedule":   ("reply",    "medium"),"engagement":  ("reply",    "medium"),
     "subscription":("reply",   "medium"),"expir":       ("reply",    "medium"),
     "winner":     ("ignore",   "low"),   "free":        ("ignore",   "low"),
-    "gift card":  ("ignore",   "low"),   "thank":       ("ignore",   "low"),
-    "recruiter":  ("ignore",   "low"),   "delivered":   ("ignore",   "low"),
-    "out of office":("ignore", "low"),   "ooo":         ("ignore",   "low"),
+    "gift card":  ("ignore",   "low"),   "thank":       ("ignore",   "safe"),
+    "recruiter":  ("ignore",   "low"),   "delivered":   ("ignore",   "safe"),
+    "out of office":("ignore", "safe"),  "ooo":         ("ignore",   "safe"),
+    "lunch":      ("ignore",   "safe"),
 }
 
 def heuristic_action(obs) -> Action:
@@ -85,12 +87,15 @@ def llm_action(client: OpenAI, obs, history_summary: List[str]) -> Action:
                 {
                     "role": "system",
                     "content": (
-                        "You are a senior SecOps analyst. Classify the email for risk. "
-                        "Focus on phishing, CEO fraud, spoofing, urgency attacks, and unauthorized access.\n\n"
+                        "You are a senior SecOps analyst. Classify the email for risk metrics.\n\n"
                         "Rules:\n"
                         "- decision: reply | ignore | escalate\n"
-                        "- priority: low | medium | high\n"
-                        "When uncertain, always ESCALATE.\n"
+                        "- priority: high | medium | low | safe\n"
+                        "- Tier Definitions:\n"
+                        "  * high: Critical threat (BEC, malware, breach)\n"
+                        "  * medium: Legitimate operational task (invoices, meetings)\n"
+                        "  * low: Low-risk noise (spam, marketing, generic noise)\n"
+                        "  * safe: Verified legitimate / Informational (OOO, thank you, FYI)\n\n"
                         "Respond ONLY with valid JSON. No explanation."
                     )
                 },
@@ -160,17 +165,17 @@ def main():
         env = MFDEEnv()
 
         for task_name in ["easy", "medium", "hard", "stress_test"]:
-
             try:
                 run_task(env, task_name, client)
             except Exception as e:
                 sys.stderr.write(f"Task error ({task_name}): {e}\n")
-                # Still emit [END] so parser doesn't hang
+                # Spec: [END] must always be emitted, even on per-task failure
                 log_end(success=False, steps=0, score=0.05, rewards=[])
 
     except Exception as e:
+        # Spec: [END] must always be emitted, even on fatal exceptions
         sys.stderr.write(f"Fatal error: {e}\n")
-        sys.exit(0)  # Always exit 0 to pass validation gate
+        log_end(success=False, steps=0, score=0.02, rewards=[])
 
 if __name__ == "__main__":
     main()
