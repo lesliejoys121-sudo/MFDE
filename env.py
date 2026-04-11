@@ -117,23 +117,16 @@ class MFDEEnv:
                     detected_categories = config["categories"]
 
         final_score = round(max(0.02, min(0.98, max_score)), 2)
-        
-        # Define Safe tier threshold
-        if final_score < 0.2:
+        if final_score < 0.1:
             risk_level = "Safe"
             detected_categories = ["Verified Legitimate"]
-            suggested_priority = "safe"
-            suggested_action = "ignore"
-        else:
-            suggested_action = "escalate" if final_score > 0.4 else "reply"
-            suggested_priority = "high" if final_score > 0.6 else ("medium" if final_score > 0.3 else "low")
 
         return {
             "scam_likelihood": final_score,
             "risk_level": risk_level,
             "threat_category": " / ".join(detected_categories),
-            "suggested_action": suggested_action,
-            "suggested_priority": suggested_priority,
+            "suggested_action": "escalate" if final_score > 0.4 else ("reply" if final_score > 0.1 else "ignore"),
+            "suggested_priority": "high" if final_score > 0.6 else ("medium" if final_score > 0.2 else "low"),
             "detected_patterns": list(set(matches))[:5],
             "analysis_summary": f"Detected {risk_level} indicator(s). Vector: {detected_categories[0]}."
         }

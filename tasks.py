@@ -38,7 +38,7 @@ TASKS: Dict[str, Dict] = {
                 "sender": "client@partner.com",
                 "subject": "Thank you",
                 "correct_decision": "ignore",
-                "correct_priority": "safe",
+                "correct_priority": "low",
                 "noise_factor": 0.05,
                 "deception_type": "none"
             },
@@ -196,7 +196,7 @@ TASKS: Dict[str, Dict] = {
                 "sender": "teammate@company.com",
                 "subject": "OOO Notice",
                 "correct_decision": "ignore",
-                "correct_priority": "safe",
+                "correct_priority": "low",
                 "noise_factor": 0.1,
                 "deception_type": "none",
                 "reason": "Informational email requiring no action."
@@ -260,7 +260,7 @@ TASKS: Dict[str, Dict] = {
                 "sender": "office-manager@company.com",
                 "subject": "Lunch order",
                 "correct_decision": "ignore",
-                "correct_priority": "safe",
+                "correct_priority": "low",
                 "noise_factor": 0.05,
                 "deception_type": "none"
             },

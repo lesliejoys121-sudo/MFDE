@@ -25,18 +25,17 @@ TRIAGE_SYSTEM = """You are an expert email security and triage AI.
 Classify each email into one action and one priority level.
 
 Actions:
-- escalate: security threats, breaches, legal matters, fraud
-- reply: legitimate requests needing a response, invoices, meetings
-- ignore: noise, generic info, spam
+- escalate: security threats, breaches, legal matters, production outages, fraud
+- reply: legitimate requests needing a response, invoices, meetings, support
+- ignore: spam, promotions, newsletters, automated FYI notifications
 
 Priority:
-- high: Critical threat (act within the hour)
-- medium: Operational task (act within the day)
-- low: Ambiguous noise / Spam
-- safe: Verified legitimate / Informational (No action needed)
+- high: act within the hour
+- medium: act within the day
+- low: no urgency
 
 Respond ONLY with JSON, no markdown:
-{"decision":"reply|ignore|escalate","priority":"safe|low|medium|high","reason":"one concise sentence"}"""
+{"decision":"reply|ignore|escalate","priority":"low|medium|high","reason":"one concise sentence"}"""
 
 
 class ScanRequest(BaseModel):
@@ -67,7 +66,7 @@ def schema():
     return {
         "action": {
             "decision": {"type": "string", "options": ["reply", "ignore", "escalate"]},
-            "priority": {"type": "string", "options": ["safe", "low", "medium", "high"]},
+            "priority": {"type": "string", "options": ["low", "medium", "high"]},
             "email_id": {"type": "integer", "optional": True}
         },
         "observation": {

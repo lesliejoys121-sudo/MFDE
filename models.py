@@ -9,7 +9,7 @@ class Observation(BaseModel):
 
 class Action(BaseModel):
     decision: Literal["reply", "ignore", "escalate"] = Field(..., description="Action to take")
-    priority: Literal["low", "medium", "high", "safe"] = Field(..., description="Assigned priority level")
+    priority: Literal["low", "medium", "high"] = Field(..., description="Assigned priority level")
     email_id: Optional[int] = Field(None, description="Optional: Target index of the email in the current task")
 
 class Reward(BaseModel):
@@ -37,7 +37,7 @@ class GmailTriageResult(BaseModel):
     from_address: str
     subject: str
     decision: Literal["reply", "ignore", "escalate"]
-    priority: Literal["low", "medium", "high", "safe"]
+    priority: Literal["low", "medium", "high"]
     reason: str
     score: float
 

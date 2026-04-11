@@ -15,7 +15,7 @@ _EASY_ANSWERS = [
     {"correct_decision": "reply",    "correct_priority": "medium"},
     {"correct_decision": "ignore",   "correct_priority": "low"},
     {"correct_decision": "escalate", "correct_priority": "high"},
-    {"correct_decision": "ignore",   "correct_priority": "safe"},
+    {"correct_decision": "ignore",   "correct_priority": "low"},
     {"correct_decision": "reply",    "correct_priority": "medium"},
 ]
 
@@ -37,7 +37,7 @@ _HARD_ANSWERS = [
     {"correct_decision": "reply",    "correct_priority": "medium"},
     {"correct_decision": "escalate", "correct_priority": "high"},
     {"correct_decision": "ignore",   "correct_priority": "low"},
-    {"correct_decision": "ignore",   "correct_priority": "safe"},
+    {"correct_decision": "ignore",   "correct_priority": "low"},
     {"correct_decision": "reply",    "correct_priority": "medium"},
     {"correct_decision": "escalate", "correct_priority": "high"},
 ]
@@ -120,7 +120,7 @@ def grade_gmail(results: List[Dict]) -> dict:
     if not results:
         return {"score": 0.0, "total": 0, "by_decision": {}, "by_priority": {}}
     by_decision = {"escalate": 0, "reply": 0, "ignore": 0}
-    by_priority  = {"high": 0, "medium": 0, "low": 0, "safe": 0}
+    by_priority  = {"high": 0, "medium": 0, "low": 0}
     for r in results:
         by_decision[r.get("decision", "ignore")] = by_decision.get(r.get("decision", "ignore"), 0) + 1
         by_priority[r.get("priority", "low")]    = by_priority.get(r.get("priority", "low"), 0) + 1

@@ -24,6 +24,8 @@ from typing import List, Optional
 
 # ── credentials & config ────────────────────────────────────────────────────
 HF_TOKEN     = os.getenv("HF_TOKEN")
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN environment variable is required")
 API_KEY      = HF_TOKEN or os.getenv("API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-72B-Instruct")
@@ -59,10 +61,9 @@ KEYWORD_MAP = {
     "schedule":   ("reply",    "medium"),"engagement":  ("reply",    "medium"),
     "subscription":("reply",   "medium"),"expir":       ("reply",    "medium"),
     "winner":     ("ignore",   "low"),   "free":        ("ignore",   "low"),
-    "gift card":  ("ignore",   "low"),   "thank":       ("ignore",   "safe"),
-    "recruiter":  ("ignore",   "low"),   "delivered":   ("ignore",   "safe"),
-    "out of office":("ignore", "safe"),  "ooo":         ("ignore",   "safe"),
-    "lunch":      ("ignore",   "safe"),
+    "gift card":  ("ignore",   "low"),   "thank":       ("ignore",   "low"),
+    "recruiter":  ("ignore",   "low"),   "delivered":   ("ignore",   "low"),
+    "out of office":("ignore", "low"),   "ooo":         ("ignore",   "low"),
 }
 
 def heuristic_action(obs) -> Action:
@@ -87,16 +88,13 @@ def llm_action(client: OpenAI, obs, history_summary: List[str]) -> Action:
                 {
                     "role": "system",
                     "content": (
-                        "You are a senior SecOps analyst. Classify the email for risk metrics.\n\n"
+                        "You are a senior SecOps analyst. Classify the email for risk. "
+                        "Focus on phishing, CEO fraud, spoofing, urgency attacks, and unauthorized access.\n\n"
                         "Rules:\n"
                         "- decision: reply | ignore | escalate\n"
-                        "- priority: high | medium | low | safe\n"
-                        "- Tier Definitions:\n"
-                        "  * high: Critical threat (BEC, malware, breach)\n"
-                        "  * medium: Legitimate operational task (invoices, meetings)\n"
-                        "  * low: Low-risk noise (spam, marketing, generic noise)\n"
-                        "  * safe: Verified legitimate / Informational (OOO, thank you, FYI)\n\n"
-                        "Respond ONLY with valid JSON. No explanation."
+                        "- priority: low | medium | high\n"
+                        "When uncertain, always ESCALATE.\n"
+                        "Respond ONLY with JSON. No explanation."
                     )
                 },
                 # One-shot example
