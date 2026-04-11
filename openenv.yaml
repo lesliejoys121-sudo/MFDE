@@ -39,5 +39,6 @@ endpoints:
   gmail_triage:  {method: POST, path: /api/gmail/triage}
   scan:          {method: POST, path: /api/scan}
 env_vars:
-  ANTHROPIC_API_KEY: "Required for Gmail triage and AI inference"
+  HF_TOKEN:          "Required for AI triage and inference (OpenAI compatible)"
+  MODEL_NAME:        "Optional: Target model name (default: Qwen/Qwen2.5-72B-Instruct)"
   GMAIL_MCP_URL:     "Gmail MCP server URL (default: https://gmail.mcp.claude.com/mcp)"

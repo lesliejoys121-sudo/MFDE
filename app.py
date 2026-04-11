@@ -183,8 +183,8 @@ def scan_email(req: ScanRequest):
 
 @app.post("/api/gmail/fetch")
 def gmail_fetch(req: GmailFetchRequest):
-    if not ANTHROPIC_API_KEY:
-        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY is not configured on the server.")
+    if not HF_TOKEN:
+        raise HTTPException(status_code=500, detail="HF_TOKEN is not configured on the server.")
 
     headers = {
         "Content-Type": "application/json",
@@ -225,8 +225,8 @@ def gmail_fetch(req: GmailFetchRequest):
 
 @app.post("/api/gmail/triage")
 def gmail_triage(req: GmailTriageRequest):
-    if not ANTHROPIC_API_KEY:
-        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY is not configured on the server.")
+    if not HF_TOKEN:
+        raise HTTPException(status_code=500, detail="HF_TOKEN is not configured on the server.")
 
     headers = {
         "Content-Type": "application/json",
